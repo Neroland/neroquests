@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"name": "neroquests",
+			"path": "."
+		}
+	],
+	"settings": {
+		"java.import.gradle.enabled": false,
+		"java.configuration.maven.notCoveredPluginExecutionSeverity": "ignore"
+	}
+}

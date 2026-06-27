@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${mod_version}",
+  "name": "${mod_name}",
+  "description": "NeroQuests - multiloader build (Fabric).",
+  "authors": ["${mod_authors}"],
+  "license": "${mod_license}",
+  "accessWidener": "neroquests.accesswidener",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["za.co.neroland.neroquests.fabric.NeroQuestsFabric"],
+    "client": ["za.co.neroland.neroquests.fabric.NeroQuestsFabricClient"]
+  },
+  "mixins": [
+    "neroquests-common.mixins.json",
+    "neroquests.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "minecraft": ">=${minecraft_version}",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
