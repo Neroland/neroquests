@@ -54,3 +54,6 @@ runs/
 # python caches (scripts)
 __pycache__/
 *.pyc
+
+# node deps (e.g. tools/gradle-mcp markdownlint)
+node_modules/
