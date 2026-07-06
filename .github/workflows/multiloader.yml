@@ -32,6 +32,7 @@ on:
 
 permissions:
   contents: read
+  packages: read   # resolve Neroland Core from GitHub Packages (see the build step)
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -94,40 +95,14 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
-      # --- Neroland Core dependency (published to Maven Local for dev/CI consumption) ---
-      # Core ships no remote Maven artifact; it's consumed from ~/.m2. A fresh runner has an
-      # empty ~/.m2, so check Core out and publish all six cells locally before building.
-      # Building any single Stonecutter node configures ALL nodes and Loom resolves every node's
-      # deps at configuration time, so all six Core cells must be in Maven Local — publishToMavenLocal
-      # publishes the whole set regardless of which matrix cell this job is.
-      - name: Checkout Neroland Core
-        uses: actions/checkout@v6
-        with:
-          repository: Neroland/neroland-core
-          ref: v1.0.1            # pin to the Core version this mod depends on (nerolandcore_version=1.0.1)
-          path: neroland-core
-          fetch-depth: 1
-
-      # Core's Forge cell does a heavy (~1.2 GB) userdev decompile that OOMs cold on CI.
-      # Cache it under a STABLE key (moves only when Core's gradle.properties pins change), and
-      # JAVA_TOOL_OPTIONS feeds the forked decompiler JVM enough heap on the first, cold run.
-      - name: Cache Neroland Core Forge userdev (Mavenizer decompile)
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches/minecraftforge
-            neroland-core/.gradle/mavenizer
-          key: core-mcmaven-${{ runner.os }}-${{ hashFiles('neroland-core/gradle.properties') }}
-          restore-keys: |
-            core-mcmaven-${{ runner.os }}-
-
-      - name: Publish Neroland Core to Maven Local
-        working-directory: neroland-core
-        env:
-          JAVA_TOOL_OPTIONS: "-Xmx6g"
-        run: |
-          chmod +x ./gradlew
-          ./gradlew publishToMavenLocal --stacktrace
+      # --- Neroland Core dependency ---
+      # Core is consumed as a published Maven artifact from GitHub Packages (see the
+      # NerolandCoreGitHubPackages repo in stonecutter.gradle). The version comes solely from
+      # nerolandcore_version in gradle.properties — no Core checkout/build here, so no pinned-ref
+      # drift. Gradle reads GITHUB_ACTOR/GITHUB_TOKEN below to authenticate the package read. The
+      # package must be readable by this repo (Core package = Internal visibility, or granted),
+      # otherwise add an org PAT secret with read:packages and use it in place of GITHUB_TOKEN.
+      # See USING-CORE.md.
       # --- end Neroland Core dependency ---
 
       - name: Build ${{ matrix.loader }} for MC ${{ matrix.mc }}
@@ -146,6 +121,8 @@ jobs:
         # the runner tool cache, the likely cause of its fast failure; that step is gone.
         env:
           JAVA_TOOL_OPTIONS: "-Xmx6g"
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           ./gradlew :${{ matrix.loader }}:${{ matrix.mc }}:build
           --stacktrace

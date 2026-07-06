@@ -40,6 +40,18 @@ subprojects {
 
     repositories {
         mavenLocal() // Neroland Core (nerolandcore-<loader>-<mc>) published locally; see USING-CORE.md
+        // Neroland Core from GitHub Packages — resolves in CI and on fresh clones, where mavenLocal is
+        // empty. mavenLocal() above still wins for local devs who run Core's publishToMavenLocal.
+        // Auth: gradle props gpr.user/gpr.key, else env GITHUB_ACTOR/GITHUB_TOKEN. Lazy getOrNull() so a
+        // local build that resolves Core from mavenLocal never needs a token. See USING-CORE.md.
+        maven {
+            name = 'NerolandCoreGitHubPackages'
+            url = 'https://maven.pkg.github.com/Neroland/neroland-core'
+            credentials {
+                username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
+                password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
+            }
+        }
         mavenCentral()
         maven { url 'https://maven.fabricmc.net/' }
         maven { url 'https://maven.neoforged.net/releases/' }
