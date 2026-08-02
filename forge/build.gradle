@@ -11,6 +11,7 @@ plugins {
 def mc = stonecutter.current.version
 def forgeVersion = project.findProperty("forge_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
+def nerolandcoreVersion = project.findProperty('nerolandcore_version')
 
 if (!forgeVersion) {
     throw new GradleException("Missing forge_version_${mc} in gradle.properties")
@@ -70,6 +71,11 @@ dependencies {
     implementation minecraft.dependency("net.minecraftforge:forge:${forgeVersion}")
     annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.5'
 
+    // Neroland Core — REQUIRED shared foundation (progression gates, config, currency/reputation,
+    // data erasure, link API). Compile + dev-runtime classpath; NOT jar-in-jar — Core ships as its
+    // own mod and loads BEFORE NeroQuests (see the mods.toml dependency).
+    implementation "za.co.neroland.nerolandcore:nerolandcore-forge-${mc}:${nerolandcoreVersion}"
+
     implementation 'io.sentry:sentry:8.45.0'
     jarJar(group: 'io.sentry', name: 'sentry', version: '8.45.0')
 
@@ -89,6 +95,9 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_license               : rootProject.mod_license,
         forge_loader_version_range: "[${forgeMajor},)",
         minecraft_version_range   : "[${mc},)",
+        // Floor the required Core version at what we compile against so Forge refuses to
+        // load NeroQuests against a Core too old to have the APIs it references.
+        nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
     ]
     inputs.properties(props)
     expand(props)

@@ -1,6 +1,6 @@
 # NeroQuests
 
-> Part of the [Neroland](../neroland-mc-ecosystem) sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
+> Part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
 
 **Status:** barebones multiloader skeleton — version `0.0.1-alpha.1`. No gameplay content yet.
 
@@ -32,7 +32,10 @@ The build is the repo root, with a flattened cross-loader structure driven by St
 
 See [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) for agent and contributor context.
 
-## Planning docs
+## Docs
 
-Design, feature and dependency docs for this mod live in the umbrella repo under
-[`../neroland-mc-ecosystem/neroquests`](../neroland-mc-ecosystem/neroquests).
+- [`wiki/Home.md`](wiki/Home.md) — player- and contributor-facing documentation
+- [`PRIVACY.md`](PRIVACY.md) — data protection (POPIA / GDPR), including crash telemetry
+
+Ecosystem-wide design, feature and dependency docs live in the Neroland planning
+repository, outside this mod.

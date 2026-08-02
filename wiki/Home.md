@@ -1,19 +1,22 @@
 # NeroQuests Wiki
 
-Player- and contributor-facing documentation for **NeroQuests**, part of the
-[Neroland ecosystem](../../neroland-mc-ecosystem/README.md). Built on **Neroland Core**.
+Player- and contributor-facing documentation for **NeroQuests**, part of the Neroland
+sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
-> **Status:** barebones — this mod is scaffolded (version `0.0.1-alpha.1`) but has no gameplay
-> content yet. Pages will grow as features land. Keep this wiki updated alongside code changes
-> (see [`../AGENTS.md`](../AGENTS.md) / [`../CLAUDE.md`](../CLAUDE.md)).
+> **Status:** early — this mod is scaffolded (version `0.0.1-alpha.1`) and gameplay content is
+> still landing. Pages will grow as features arrive. Keep this wiki updated alongside code
+> changes (see [`../AGENTS.md`](../AGENTS.md) / [`../CLAUDE.md`](../CLAUDE.md)).
 
 ## Contents
 
-_No feature pages yet._ Add one page per block, item, machine, or system as it is built, and link it
-here. Keep this page as the index.
+- [Quest format](Quest-Format.md) — the datapack JSON for quests and quest-book chapters
+- [Data storage](Data-Storage.md) — how quest progress is saved, kept, erased and exported
+- [Telemetry](Telemetry.md) — anonymous crash reporting: what is sent, and how to opt out
+
+_Feature pages follow._ Add one page per block, item, machine, or system as it is built, and
+link it here. Keep this page as the index.
 
 ## See also
 
 - [Build & contributor context](../AGENTS.md)
-- [Ecosystem overview](../../neroland-mc-ecosystem/README.md)
-- [This mod's planning docs](../../neroland-mc-ecosystem/neroquests/)
+- [Privacy & data protection](../PRIVACY.md)
