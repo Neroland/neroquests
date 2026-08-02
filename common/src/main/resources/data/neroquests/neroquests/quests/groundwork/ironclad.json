@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.groundwork.ironclad.title",
+  "description": "quest.neroquests.groundwork.ironclad.desc",
+  "icon": "minecraft:iron_block",
+  "prerequisites": ["neroquests:groundwork/iron_age"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "minecraft:iron_block", "count": 1 },
+    { "type": "neroquests:collect_item", "item": "minecraft:iron_block", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 30 },
+    { "type": "neroquests:currency", "amount": 25 }
+  ],
+  "scope": "player"
+}

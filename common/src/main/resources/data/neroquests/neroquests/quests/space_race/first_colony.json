@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.space_race.first_colony.title",
+  "description": "quest.neroquests.space_race.first_colony.desc",
+  "icon": "minecraft:beacon",
+  "prerequisites": ["neroquests:space_race/reach_for_orbit"],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:first_colony" }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 250 },
+    { "type": "neroquests:item", "item": "minecraft:diamond", "count": 4 },
+    { "type": "neroquests:currency", "amount": 300 }
+  ],
+  "scope": "player"
+}

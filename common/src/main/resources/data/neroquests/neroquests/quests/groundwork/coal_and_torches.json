@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.groundwork.coal_and_torches.title",
+  "description": "quest.neroquests.groundwork.coal_and_torches.desc",
+  "icon": "minecraft:torch",
+  "prerequisites": ["neroquests:groundwork/first_tools"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "tag": "minecraft:coals", "count": 8 },
+    { "type": "neroquests:craft_item", "item": "minecraft:torch", "count": 16 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 20 },
+    { "type": "neroquests:item", "item": "minecraft:torch", "count": 16 },
+    { "type": "neroquests:currency", "amount": 10 }
+  ],
+  "scope": "player"
+}

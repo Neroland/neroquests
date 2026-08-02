@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.groundwork.diamond_standard.title",
+  "description": "quest.neroquests.groundwork.diamond_standard.desc",
+  "icon": "minecraft:diamond_pickaxe",
+  "prerequisites": ["neroquests:groundwork/iron_age"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:diamond", "count": 3 },
+    { "type": "neroquests:craft_item", "item": "minecraft:diamond_pickaxe", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 80 },
+    { "type": "neroquests:currency", "amount": 50 }
+  ],
+  "scope": "player"
+}

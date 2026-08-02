@@ -13,4 +13,13 @@ import za.co.neroland.neroquests.quest.RewardSpec;
  * hand out something unintended or crash the server.
  */
 public record UnknownReward(Identifier typeId) implements RewardSpec {
+
+    /**
+     * Grants nothing. Unreachable in practice — a quest carrying one of these is dropped at load —
+     * but a placeholder for content that is not installed must pay out nothing if it ever is reached.
+     */
+    @Override
+    public void grant(RewardContext context) {
+        // Intentionally empty.
+    }
 }

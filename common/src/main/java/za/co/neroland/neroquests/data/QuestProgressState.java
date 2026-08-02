@@ -132,6 +132,15 @@ public final class QuestProgressState extends SavedData {
     }
 
     /**
+     * Every quest row stored for one player, as an immutable copy — the snapshot the client sync
+     * sends to that player, and nobody else's data (POPIA/GDPR).
+     */
+    public Map<Identifier, QuestProgress> playerProgress(UUID player) {
+        Map<Identifier, QuestProgress> quests = byPlayer.get(player);
+        return quests == null || quests.isEmpty() ? Map.of() : Map.copyOf(quests);
+    }
+
+    /**
      * Adds {@code amount} to one objective's counter for a player, saturating at
      * {@code [0, Integer.MAX_VALUE]}.
      *
@@ -191,6 +200,14 @@ public final class QuestProgressState extends SavedData {
         return complete;
     }
 
+    /**
+     * Every shared {@code scope: server} quest row, as an immutable copy. Identifier-free: this
+     * section belongs to the world, so it is safe to send to every client.
+     */
+    public Map<Identifier, QuestProgress> allServerProgress() {
+        return serverScope.isEmpty() ? Map.of() : Map.copyOf(serverScope);
+    }
+
     /** Whether a {@code scope: server} quest is complete for the whole world. */
     public boolean isServerComplete(Identifier quest) {
         QuestProgress progress = serverScope.get(quest);
@@ -219,6 +236,39 @@ public final class QuestProgressState extends SavedData {
             return false;
         }
         serverScope.put(quest, current.withCompletedAt(epochMillis > 0L ? epochMillis : System.currentTimeMillis()));
+        setDirty();
+        return true;
+    }
+
+    // --- admin edits ---------------------------------------------------------
+
+    /**
+     * Drops one player's whole row for one quest — its completion stamp <em>and</em> every objective
+     * counter — so the quest reads as never started again. Backs {@code /neroquests revoke} and
+     * {@code /neroquests reset &lt;player&gt; &lt;quest&gt;}, which are one behaviour under two names.
+     *
+     * <p>This only forgets progress. Rewards already paid out are not clawed back: they live in
+     * inventories, XP, Core gates, currency and reputation, none of which this store owns.
+     *
+     * @return {@code true} if a row was actually removed
+     */
+    public boolean resetQuest(UUID player, Identifier quest) {
+        Map<Identifier, QuestProgress> quests = byPlayer.get(player);
+        if (quests == null || quests.remove(quest) == null) {
+            return false;
+        }
+        if (quests.isEmpty()) {
+            byPlayer.remove(player);
+        }
+        touch(player);
+        return true;
+    }
+
+    /** {@link #resetQuest} for the shared {@code scope: server} section (no player is involved). */
+    public boolean resetServerQuest(Identifier quest) {
+        if (serverScope.remove(quest) == null) {
+            return false;
+        }
         setDirty();
         return true;
     }

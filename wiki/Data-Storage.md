@@ -79,10 +79,16 @@ included, so an export can be handed to the player who asked for it as-is.
 }
 ```
 
-The in-game command that produces this file arrives with the quest-book and admin command set.
+Operators produce it in-game with `/neroquests export <player>` — an online player's name, or a
+UUID for someone who has left. The JSON is printed to whoever ran the command and to nobody else.
+See [Commands](Commands.md).
+
+The same tree also holds the per-player admin controls: `/neroquests reset <player>` wipes one
+player's stored progress, and `/neroquests revoke <player> <quest>` clears a single quest.
 
 ## See also
 
+- [Commands](Commands.md) — the `/neroquests` operator tree, including `export` and `reset`
 - [Quest format](Quest-Format.md) — the datapack JSON these counters track
 - [Telemetry](Telemetry.md) — crash reporting, which never contains quest progress
 - [Privacy & data protection](../PRIVACY.md) — the full POPIA/GDPR statement

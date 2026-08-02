@@ -1,0 +1,17 @@
+{
+  "title": "quest.neroquests.industrial.machine_shop.title",
+  "description": "quest.neroquests.industrial.machine_shop.desc",
+  "icon": "minecraft:crafter",
+  "prerequisites": ["neroquests:industrial/bulk_smelting"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "minecraft:crafter", "count": 1 },
+    { "type": "neroquests:craft_item", "item": "minecraft:observer", "count": 2 },
+    { "type": "neroquests:craft_item", "item": "minecraft:dropper", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 70 },
+    { "type": "neroquests:item", "item": "minecraft:redstone", "count": 16 },
+    { "type": "neroquests:currency", "amount": 60 }
+  ],
+  "scope": "player"
+}

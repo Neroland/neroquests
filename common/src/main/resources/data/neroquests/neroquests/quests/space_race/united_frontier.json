@@ -1,0 +1,17 @@
+{
+  "title": "quest.neroquests.space_race.united_frontier.title",
+  "description": "quest.neroquests.space_race.united_frontier.desc",
+  "icon": "minecraft:end_crystal",
+  "prerequisites": [],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:first_colony" },
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:deep_space" }
+  ],
+  "rewards": [
+    { "type": "neroquests:gate", "gate": "nerolandcore:deep_space" },
+    { "type": "neroquests:xp", "amount": 500 },
+    { "type": "neroquests:item", "item": "minecraft:beacon", "count": 1 },
+    { "type": "neroquests:currency", "amount": 1000 }
+  ],
+  "scope": "server"
+}

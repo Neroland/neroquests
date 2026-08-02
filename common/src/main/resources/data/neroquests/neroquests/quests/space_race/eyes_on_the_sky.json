@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.space_race.eyes_on_the_sky.title",
+  "description": "quest.neroquests.space_race.eyes_on_the_sky.desc",
+  "icon": "minecraft:spyglass",
+  "prerequisites": ["neroquests:industrial/age_of_industry"],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:industrial_power" },
+    { "type": "neroquests:craft_item", "item": "minecraft:spyglass", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 100 },
+    { "type": "neroquests:currency", "amount": 100 }
+  ],
+  "scope": "player"
+}

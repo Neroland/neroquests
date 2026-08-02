@@ -1,0 +1,17 @@
+{
+  "title": "quest.neroquests.industrial.age_of_industry.title",
+  "description": "quest.neroquests.industrial.age_of_industry.desc",
+  "icon": "minecraft:anvil",
+  "prerequisites": ["neroquests:industrial/power_up"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "minecraft:anvil", "count": 1 },
+    { "type": "neroquests:collect_item", "item": "minecraft:iron_block", "count": 2 }
+  ],
+  "rewards": [
+    { "type": "neroquests:gate", "gate": "nerolandcore:industrial_power" },
+    { "type": "neroquests:xp", "amount": 200 },
+    { "type": "neroquests:item", "item": "minecraft:diamond", "count": 4 },
+    { "type": "neroquests:currency", "amount": 250 }
+  ],
+  "scope": "player"
+}

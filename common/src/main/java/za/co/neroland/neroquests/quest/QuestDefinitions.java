@@ -33,17 +33,27 @@ import za.co.neroland.neroquests.quest.reward.UnknownReward;
  * namespace + path without the extension, so a pack overrides a definition simply by shipping
  * the same id.
  *
- * <p>Lifecycle mirrors Neroland Core's {@code GateDefinitions}: definitions are read from the
- * running server's {@link ResourceManager} lazily on first use, cached per server instance, and
- * re-read whenever the server object changes (a new world/singleplayer session). Because the
- * cached value is keyed on the server, a datapack {@code /reload} does not by itself invalidate
- * it — call {@link #reload(MinecraftServer)} from a reload hook once a reload-listener seam
- * lands, which re-reads in place and leaves progress untouched (progress for a quest that has
- * disappeared is simply retained but inert).
+ * <p>Lifecycle follows Neroland Core's {@code GateDefinitions}: definitions are read from the
+ * running server's {@link ResourceManager} lazily on first use and cached, so a fully-completed
+ * pack costs no I/O. NeroQuests goes one step further than Core and also survives {@code /reload}:
+ * the cache is keyed on the <em>{@link ResourceManager} instance</em> as well as the server, and
+ * {@code MinecraftServer.reloadResources} replaces that instance wholesale, so a reload is
+ * detected by an identity comparison in pure common code — no per-loader reload-listener API to
+ * register three different ways, and no divergence between loaders. {@link #reload(MinecraftServer)}
+ * forces the same re-read explicitly.
+ *
+ * <p>Re-reading leaves stored progress untouched: progress for a quest that has disappeared is
+ * simply retained but inert, and a quest whose objectives grew keeps the counters it had.
+ *
+ * <p>{@link #generation()} counts loads, so a consumer that caches something derived from the
+ * definitions (the client-sync snapshot does) can tell when to rebuild it.
  *
  * <p><b>Nothing here ever crashes on bad content.</b> Every malformed file, unknown type,
  * dangling reference, cycle and duplicate is logged at warn level against its resource id and
- * the offending entry is dropped. Log lines carry resource ids only — never player data.
+ * the offending entry is dropped. Log lines carry resource ids only — never player data. The same
+ * complaints are also collected as {@link ValidationIssue}s ({@link #validationIssues()}), so
+ * {@code /neroquests reload-check} can show an operator what a pack got wrong without making them
+ * read the server log.
  */
 public final class QuestDefinitions {
 
@@ -51,12 +61,54 @@ public final class QuestDefinitions {
     private static final String CHAPTER_DIRECTORY = "neroquests/chapters";
     private static final String EXTENSION = ".json";
 
+    /** Stands in for "the whole load", which belongs to no single resource. */
+    private static final Identifier LOAD_ISSUE_ID =
+            Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "load");
+
     /** The server whose datapacks produced the current maps, or null before the first load. */
     private static MinecraftServer loadedFor;
+
+    /**
+     * The resource-manager instance the current maps were read from. {@code /reload} replaces the
+     * server's whole {@code ReloadableResources} (and with it this object), so an identity change
+     * here means "the datapacks were reloaded" — the loader-free reload signal.
+     */
+    private static ResourceManager loadedFrom;
+
+    /** Incremented on every (re)load, so derived caches can tell when they are stale. */
+    private static int generation;
+
     private static Map<Identifier, Quest> quests = Map.of();
     private static Map<Identifier, Chapter> chapters = Map.of();
 
+    /** What the last load complained about, in the order it complained. Replaced wholesale per load. */
+    private static List<ValidationIssue> issues = List.of();
+
     private QuestDefinitions() {
+    }
+
+    /**
+     * One thing the last load rejected, alongside the log line it produced. Collected purely so
+     * {@code /neroquests reload-check} can hand an operator the same picture the server log holds
+     * without making them read the log.
+     *
+     * <p>Resource ids and codec messages only — never player data.
+     *
+     * @param severity whether the whole definition was dropped or only part of it ignored
+     * @param id       the quest, chapter or (for a whole-load failure) sentinel id it concerns
+     * @param detail   a short, human-readable reason
+     */
+    public record ValidationIssue(Severity severity, Identifier id, String detail) {
+
+        /** How badly a definition was affected. */
+        public enum Severity {
+
+            /** The definition is not loaded at all. */
+            DROPPED,
+
+            /** The definition is loaded, but part of it (an entry, a reference) was skipped. */
+            IGNORED
+        }
     }
 
     // --- lifecycle ---------------------------------------------------------
@@ -73,20 +125,59 @@ public final class QuestDefinitions {
         return chapters;
     }
 
+    /** The validation problems this server's definitions produced (loads + caches on first use). */
+    public static synchronized List<ValidationIssue> issuesForServer(MinecraftServer server) {
+        ensureLoaded(server);
+        return issues;
+    }
+
+    /**
+     * Everything the last load dropped or ignored, empty when the pack is clean. The list is
+     * immutable and replaced (never mutated) by each load, so a caller may hold on to a snapshot.
+     */
+    public static List<ValidationIssue> validationIssues() {
+        return issues;
+    }
+
     /**
      * Re-reads every definition from {@code server}'s current datapacks, replacing the cache.
-     * Safe to call at any time; intended for a {@code /reload} hook.
+     * Safe to call at any time.
      */
     public static synchronized void reload(MinecraftServer server) {
-        load(server);
-        loadedFor = server;
+        loadFrom(server);
+    }
+
+    /**
+     * Re-reads the definitions if — and only if — {@code server}'s datapacks have been reloaded
+     * (or this is a different server) since the last load. Cheap enough to call every tick: the
+     * common case is one reference comparison.
+     *
+     * @return {@code true} if the definitions were re-read, i.e. the caller should re-sync clients
+     */
+    public static synchronized boolean refreshIfReloaded(MinecraftServer server) {
+        if (server == loadedFor && server.getResourceManager() == loadedFrom) {
+            return false;
+        }
+        loadFrom(server);
+        return true;
+    }
+
+    /** How many times the definitions have been loaded; changes whenever the content may have. */
+    public static synchronized int generation() {
+        return generation;
     }
 
     private static void ensureLoaded(MinecraftServer server) {
-        if (server != loadedFor) {
-            load(server);
-            loadedFor = server;
+        if (server != loadedFor || server.getResourceManager() != loadedFrom) {
+            loadFrom(server);
         }
+    }
+
+    private static void loadFrom(MinecraftServer server) {
+        load(server);
+        loadedFor = server;
+        loadedFrom = server.getResourceManager();
+        generation++;
     }
 
     // --- accessors ---------------------------------------------------------
@@ -173,22 +264,30 @@ public final class QuestDefinitions {
     private static void load(MinecraftServer server) {
         Map<Identifier, Quest> loadedQuests = Map.of();
         Map<Identifier, Chapter> loadedChapters = Map.of();
+        List<ValidationIssue> collected = new ArrayList<>();
         try {
             ResourceManager resources = server.getResourceManager();
-            loadedQuests = validateQuests(readQuests(resources));
-            loadedChapters = validateChapters(readChapters(resources), loadedQuests);
+            loadedQuests = validateQuests(readQuests(resources, collected), collected);
+            loadedChapters = validateChapters(readChapters(resources, collected), loadedQuests, collected);
         } catch (RuntimeException e) {
             NeroQuestsCommon.LOGGER.warn("[NeroQuests] Quest definition load failed; no quests are active.", e);
             loadedQuests = Map.of();
             loadedChapters = Map.of();
+            collected.clear();
+            // The exception's own message can carry a filesystem path, so only its type is kept for
+            // the operator-facing report; the full trace stays in the log line above.
+            collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, LOAD_ISSUE_ID,
+                    "load failed (" + e.getClass().getSimpleName() + "); no quests are active"));
         }
         quests = loadedQuests;
         chapters = loadedChapters;
+        issues = List.copyOf(collected);
         NeroQuestsCommon.LOGGER.info("[NeroQuests] Loaded {} quest(s) in {} chapter(s).",
                 quests.size(), chapters.size());
     }
 
-    private static Map<Identifier, Quest> readQuests(ResourceManager resources) {
+    private static Map<Identifier, Quest> readQuests(ResourceManager resources,
+                                                     List<ValidationIssue> collected) {
         Map<Identifier, Quest> loaded = new LinkedHashMap<>();
         for (Map.Entry<Identifier, Resource> file : listJson(resources, QUEST_DIRECTORY).entrySet()) {
             Identifier questId = toDefinitionId(file.getKey(), QUEST_DIRECTORY);
@@ -197,18 +296,26 @@ public final class QuestDefinitions {
             }
             try (BufferedReader reader = file.getValue().openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
-                Quest.DATA_CODEC.parse(JsonOps.INSTANCE, json)
-                        .resultOrPartial(error -> NeroQuestsCommon.LOGGER.warn(
-                                "[NeroQuests] Bad quest definition {}: {}", questId, error))
-                        .ifPresent(data -> loaded.put(questId, new Quest(questId, data)));
+                List<String> errors = new ArrayList<>(1);
+                Optional<Quest.Data> parsed = Quest.DATA_CODEC.parse(JsonOps.INSTANCE, json)
+                        .resultOrPartial(error -> {
+                            NeroQuestsCommon.LOGGER.warn(
+                                    "[NeroQuests] Bad quest definition {}: {}", questId, error);
+                            errors.add(error);
+                        });
+                parsed.ifPresent(data -> loaded.put(questId, new Quest(questId, data)));
+                recordParseErrors(collected, questId, "quest", parsed.isPresent(), errors);
             } catch (Exception e) {
                 NeroQuestsCommon.LOGGER.warn("[NeroQuests] Could not read quest {}", questId, e);
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, questId,
+                        "could not be read (" + e.getClass().getSimpleName() + ")"));
             }
         }
         return loaded;
     }
 
-    private static Map<Identifier, Chapter> readChapters(ResourceManager resources) {
+    private static Map<Identifier, Chapter> readChapters(ResourceManager resources,
+                                                         List<ValidationIssue> collected) {
         Map<Identifier, Chapter> loaded = new LinkedHashMap<>();
         for (Map.Entry<Identifier, Resource> file : listJson(resources, CHAPTER_DIRECTORY).entrySet()) {
             Identifier chapterId = toDefinitionId(file.getKey(), CHAPTER_DIRECTORY);
@@ -217,15 +324,45 @@ public final class QuestDefinitions {
             }
             try (BufferedReader reader = file.getValue().openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
-                Chapter.DATA_CODEC.parse(JsonOps.INSTANCE, json)
-                        .resultOrPartial(error -> NeroQuestsCommon.LOGGER.warn(
-                                "[NeroQuests] Bad chapter definition {}: {}", chapterId, error))
-                        .ifPresent(data -> loaded.put(chapterId, new Chapter(chapterId, data)));
+                List<String> errors = new ArrayList<>(1);
+                Optional<Chapter.Data> parsed = Chapter.DATA_CODEC.parse(JsonOps.INSTANCE, json)
+                        .resultOrPartial(error -> {
+                            NeroQuestsCommon.LOGGER.warn(
+                                    "[NeroQuests] Bad chapter definition {}: {}", chapterId, error);
+                            errors.add(error);
+                        });
+                parsed.ifPresent(data -> loaded.put(chapterId, new Chapter(chapterId, data)));
+                recordParseErrors(collected, chapterId, "chapter", parsed.isPresent(), errors);
             } catch (Exception e) {
                 NeroQuestsCommon.LOGGER.warn("[NeroQuests] Could not read chapter {}", chapterId, e);
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, chapterId,
+                        "could not be read (" + e.getClass().getSimpleName() + ")"));
             }
         }
         return loaded;
+    }
+
+    /**
+     * Turn a codec's complaints into report rows. A codec may complain and still produce a value
+     * (a partial decode), so the severity follows whether anything survived rather than whether
+     * anything was said.
+     */
+    private static void recordParseErrors(List<ValidationIssue> collected, Identifier id, String kind,
+                                          boolean survived, List<String> errors) {
+        if (errors.isEmpty()) {
+            if (!survived) {
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, id,
+                        "not a readable " + kind + " definition"));
+            }
+            return;
+        }
+        ValidationIssue.Severity severity = survived
+                ? ValidationIssue.Severity.IGNORED
+                : ValidationIssue.Severity.DROPPED;
+        String prefix = survived ? "partly bad " + kind + " definition: " : "bad " + kind + " definition: ";
+        for (String error : errors) {
+            collected.add(new ValidationIssue(severity, id, prefix + error));
+        }
     }
 
     private static Map<Identifier, Resource> listJson(ResourceManager resources, String directory) {
@@ -240,11 +377,14 @@ public final class QuestDefinitions {
      * from the quest, which survives), then prerequisite cycles (every quest in or behind a
      * cycle is dropped). The surviving map is in dependency order.
      */
-    private static Map<Identifier, Quest> validateQuests(Map<Identifier, Quest> parsed) {
+    private static Map<Identifier, Quest> validateQuests(Map<Identifier, Quest> parsed,
+                                                         List<ValidationIssue> collected) {
         Map<Identifier, Quest> usable = new LinkedHashMap<>();
         for (Quest quest : parsed.values()) {
             if (quest.objectives().isEmpty()) {
                 NeroQuestsCommon.LOGGER.warn("[NeroQuests] Quest {} has no objectives; dropped.", quest.id());
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, quest.id(),
+                        "no objectives"));
                 continue;
             }
             Identifier unknownType = firstUnknownType(quest);
@@ -252,6 +392,8 @@ public final class QuestDefinitions {
                 NeroQuestsCommon.LOGGER.warn(
                         "[NeroQuests] Quest {} uses unregistered objective/reward type '{}'; dropped.",
                         quest.id(), unknownType);
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, quest.id(),
+                        "unregistered objective/reward type " + unknownType));
                 continue;
             }
             usable.put(quest.id(), quest);
@@ -267,6 +409,8 @@ public final class QuestDefinitions {
                     NeroQuestsCommon.LOGGER.warn(
                             "[NeroQuests] Quest {} requires unknown quest {}; that prerequisite is ignored.",
                             quest.id(), prerequisite);
+                    collected.add(new ValidationIssue(ValidationIssue.Severity.IGNORED, quest.id(),
+                            "unknown prerequisite " + prerequisite));
                 }
             }
             pruned.put(quest.id(), kept.size() == quest.prerequisites().size()
@@ -297,6 +441,8 @@ public final class QuestDefinitions {
             NeroQuestsCommon.LOGGER.warn(
                     "[NeroQuests] Quest {} is in (or behind) a prerequisite cycle and can never unlock; dropped.",
                     quest.id());
+            collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, quest.id(),
+                    "in (or behind) a prerequisite cycle"));
         }
         return Collections.unmodifiableMap(accepted);
     }
@@ -308,7 +454,8 @@ public final class QuestDefinitions {
      * always kept.
      */
     private static Map<Identifier, Chapter> validateChapters(Map<Identifier, Chapter> parsed,
-                                                            Map<Identifier, Quest> validQuests) {
+                                                            Map<Identifier, Quest> validQuests,
+                                                            List<ValidationIssue> collected) {
         List<Identifier> ordered = new ArrayList<>(parsed.keySet());
         ordered.sort(Comparator.comparing(Identifier::toString));
 
@@ -322,11 +469,16 @@ public final class QuestDefinitions {
                     NeroQuestsCommon.LOGGER.warn(
                             "[NeroQuests] Chapter {} lists unknown quest {}; that entry is ignored.",
                             chapterId, entry.quest());
+                    collected.add(new ValidationIssue(ValidationIssue.Severity.IGNORED, chapterId,
+                            "lists unknown quest " + entry.quest()));
                 } else if (!claimed.add(entry.quest())) {
                     NeroQuestsCommon.LOGGER.warn(
                             "[NeroQuests] Quest {} is listed more than once (chapter {} keeps the first "
                                     + "listing only); the duplicate entry is ignored.",
                             entry.quest(), chapterId);
+                    collected.add(new ValidationIssue(ValidationIssue.Severity.IGNORED, chapterId,
+                            "duplicate listing of quest " + entry.quest() + " (an earlier chapter "
+                                    + "already claims it)"));
                 } else {
                     kept.add(entry);
                 }

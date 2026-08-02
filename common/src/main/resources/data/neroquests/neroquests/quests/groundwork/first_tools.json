@@ -1,0 +1,17 @@
+{
+  "title": "quest.neroquests.groundwork.first_tools.title",
+  "description": "quest.neroquests.groundwork.first_tools.desc",
+  "icon": "minecraft:stone_pickaxe",
+  "prerequisites": [],
+  "objectives": [
+    { "type": "neroquests:collect_item", "tag": "minecraft:logs", "count": 16 },
+    { "type": "neroquests:craft_item", "item": "minecraft:crafting_table", "count": 1 },
+    { "type": "neroquests:craft_item", "item": "minecraft:stone_pickaxe", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 20 },
+    { "type": "neroquests:item", "item": "minecraft:bread", "count": 4 },
+    { "type": "neroquests:currency", "amount": 10 }
+  ],
+  "scope": "player"
+}

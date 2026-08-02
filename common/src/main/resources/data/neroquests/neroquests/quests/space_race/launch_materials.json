@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.space_race.launch_materials.title",
+  "description": "quest.neroquests.space_race.launch_materials.desc",
+  "icon": "minecraft:iron_block",
+  "prerequisites": ["neroquests:space_race/eyes_on_the_sky"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:iron_block", "count": 4 },
+    { "type": "neroquests:collect_item", "tag": "c:ingots/nerosteel", "count": 16 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 120 },
+    { "type": "neroquests:item", "item": "minecraft:iron_block", "count": 2 },
+    { "type": "neroquests:currency", "amount": 120 }
+  ],
+  "scope": "player"
+}

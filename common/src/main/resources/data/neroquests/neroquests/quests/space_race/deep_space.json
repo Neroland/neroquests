@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.space_race.deep_space.title",
+  "description": "quest.neroquests.space_race.deep_space.desc",
+  "icon": "minecraft:nether_star",
+  "prerequisites": ["neroquests:space_race/first_colony"],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:deep_space" },
+    { "type": "neroquests:reach_dimension", "dimension": "nerospace:cindara" }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 300 },
+    { "type": "neroquests:currency", "amount": 400 }
+  ],
+  "scope": "player"
+}

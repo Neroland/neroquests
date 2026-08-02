@@ -5,6 +5,7 @@ import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.level.ServerPlayer;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.RewardSpec;
@@ -17,6 +18,10 @@ import za.co.neroland.neroquests.quest.RewardSpec;
  * <p>{@code amount} is required and must be at least 1; a zero or negative amount fails the
  * codec, which drops the owning quest with a logged warning rather than silently granting
  * nothing.
+ *
+ * <p>Experience needs a body to land in, so this reward is skipped (with a debug line) when the
+ * recipient is offline — which on a {@code scope: server} quest means the triggering player has
+ * logged off between the trigger and the payout.
  */
 public record XpReward(int amount) implements RewardSpec {
 
@@ -30,5 +35,17 @@ public record XpReward(int amount) implements RewardSpec {
     @Override
     public Identifier typeId() {
         return TYPE_ID;
+    }
+
+    @Override
+    public void grant(RewardContext context) {
+        ServerPlayer player = context.player();
+        if (player == null) {
+            NeroQuestsCommon.LOGGER.debug(
+                    "[NeroQuests] Quest {} reward {} skipped: the recipient is offline.",
+                    context.quest().id(), TYPE_ID);
+            return;
+        }
+        player.giveExperiencePoints(amount);
     }
 }

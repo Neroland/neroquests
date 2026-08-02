@@ -5,8 +5,13 @@
 ## The mod
 
 - **NeroQuests** — part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
-  This repository is currently a **barebones multiloader skeleton** (no gameplay content yet); add
-  shared content under `common/` and wire it through each loader entry point.
+  A **native, datapack-driven quest engine**: quest/chapter definitions loaded from datapacks, an
+  objective + trigger engine, rewards (items, XP, Core gates, currency, reputation), per-player and
+  server-scope progress storage, server→client sync, the in-game quest book GUI, the `/neroquests`
+  operator commands, and a NeroLink link module exposing quest data to companion clients. It ships
+  **no quest content of its own yet** — the engine is the product; packs supply the quests. Add
+  shared content under `common/` and wire it through each loader entry point, and document every
+  feature with its own page under `wiki/`.
 - Mod id: **`neroquests`** (matches the registry namespace + every loader manifest). Package root:
   `za.co.neroland.neroquests`. Author: **Neroland**.
 - Version: **0.0.1-alpha.1**.

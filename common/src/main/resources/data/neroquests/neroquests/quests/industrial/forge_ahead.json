@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.industrial.forge_ahead.title",
+  "description": "quest.neroquests.industrial.forge_ahead.desc",
+  "icon": "minecraft:blast_furnace",
+  "prerequisites": ["neroquests:groundwork/breaking_ground"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "minecraft:blast_furnace", "count": 1 },
+    { "type": "neroquests:collect_item", "tag": "c:ingots/iron", "count": 32 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 60 },
+    { "type": "neroquests:item", "item": "minecraft:iron_ingot", "count": 8 },
+    { "type": "neroquests:currency", "amount": 50 }
+  ],
+  "scope": "player"
+}

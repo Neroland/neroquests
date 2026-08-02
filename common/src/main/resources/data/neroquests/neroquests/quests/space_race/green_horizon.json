@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.space_race.green_horizon.title",
+  "description": "quest.neroquests.space_race.green_horizon.desc",
+  "icon": "minecraft:moss_block",
+  "prerequisites": ["neroquests:space_race/reach_for_orbit"],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "nerolandcore:reached_orbit" },
+    { "type": "neroquests:reach_dimension", "dimension": "nerospace:greenxertz" }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 150 },
+    { "type": "neroquests:currency", "amount": 150 }
+  ],
+  "scope": "player"
+}

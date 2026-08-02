@@ -1,0 +1,16 @@
+{
+  "title": "chapter.neroquests.groundwork.title",
+  "icon": "minecraft:crafting_table",
+  "quests": [
+    { "quest": "neroquests:groundwork/first_tools", "x": 0, "y": 0 },
+    { "quest": "neroquests:groundwork/first_shelter", "x": 2, "y": 2 },
+    { "quest": "neroquests:groundwork/coal_and_torches", "x": 2, "y": 0 },
+    { "quest": "neroquests:groundwork/pest_control", "x": 4, "y": 2 },
+    { "quest": "neroquests:groundwork/iron_age", "x": 4, "y": 0 },
+    { "quest": "neroquests:groundwork/ironclad", "x": 6, "y": 0 },
+    { "quest": "neroquests:groundwork/diamond_standard", "x": 6, "y": 2 },
+    { "quest": "neroquests:groundwork/redstone_awakening", "x": 8, "y": 0 },
+    { "quest": "neroquests:groundwork/moving_parts", "x": 10, "y": 0 },
+    { "quest": "neroquests:groundwork/breaking_ground", "x": 12, "y": 1 }
+  ]
+}

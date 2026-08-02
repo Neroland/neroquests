@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.industrial.bulk_smelting.title",
+  "description": "quest.neroquests.industrial.bulk_smelting.desc",
+  "icon": "minecraft:copper_block",
+  "prerequisites": ["neroquests:industrial/forge_ahead"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:copper_ingot", "count": 32 },
+    { "type": "neroquests:craft_item", "item": "minecraft:hopper", "count": 2 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 60 },
+    { "type": "neroquests:item", "item": "minecraft:copper_block", "count": 2 },
+    { "type": "neroquests:currency", "amount": 50 }
+  ],
+  "scope": "player"
+}

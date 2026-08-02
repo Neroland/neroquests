@@ -1,0 +1,14 @@
+{
+  "title": "quest.neroquests.industrial.alloy_ambitions.title",
+  "description": "quest.neroquests.industrial.alloy_ambitions.desc",
+  "icon": "minecraft:netherite_ingot",
+  "prerequisites": ["neroquests:industrial/pressed_and_powdered"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "tag": "c:ingots/nero_alloy", "count": 4 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 100 },
+    { "type": "neroquests:currency", "amount": 100 }
+  ],
+  "scope": "player"
+}

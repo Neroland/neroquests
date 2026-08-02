@@ -1,0 +1,13 @@
+{
+  "title": "chapter.neroquests.space_race.title",
+  "icon": "minecraft:end_crystal",
+  "quests": [
+    { "quest": "neroquests:space_race/eyes_on_the_sky", "x": 0, "y": 0 },
+    { "quest": "neroquests:space_race/launch_materials", "x": 2, "y": 0 },
+    { "quest": "neroquests:space_race/reach_for_orbit", "x": 4, "y": 0 },
+    { "quest": "neroquests:space_race/green_horizon", "x": 6, "y": 2 },
+    { "quest": "neroquests:space_race/first_colony", "x": 6, "y": 0 },
+    { "quest": "neroquests:space_race/deep_space", "x": 8, "y": 0 },
+    { "quest": "neroquests:space_race/united_frontier", "x": 10, "y": 1 }
+  ]
+}

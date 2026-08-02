@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.groundwork.first_shelter.title",
+  "description": "quest.neroquests.groundwork.first_shelter.desc",
+  "icon": "minecraft:red_bed",
+  "prerequisites": ["neroquests:groundwork/first_tools"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "tag": "minecraft:beds", "count": 1 },
+    { "type": "neroquests:craft_item", "item": "minecraft:chest", "count": 2 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 15 },
+    { "type": "neroquests:item", "item": "minecraft:bread", "count": 6 },
+    { "type": "neroquests:currency", "amount": 10 }
+  ],
+  "scope": "player"
+}

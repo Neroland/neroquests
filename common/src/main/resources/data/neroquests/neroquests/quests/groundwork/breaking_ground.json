@@ -1,0 +1,19 @@
+{
+  "title": "quest.neroquests.groundwork.breaking_ground.title",
+  "description": "quest.neroquests.groundwork.breaking_ground.desc",
+  "icon": "minecraft:obsidian",
+  "prerequisites": [
+    "neroquests:groundwork/moving_parts",
+    "neroquests:groundwork/diamond_standard"
+  ],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:obsidian", "count": 10 },
+    { "type": "neroquests:craft_item", "item": "minecraft:flint_and_steel", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 100 },
+    { "type": "neroquests:item", "item": "minecraft:diamond", "count": 2 },
+    { "type": "neroquests:currency", "amount": 100 }
+  ],
+  "scope": "player"
+}

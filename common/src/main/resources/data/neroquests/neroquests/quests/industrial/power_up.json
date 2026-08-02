@@ -1,0 +1,20 @@
+{
+  "title": "quest.neroquests.industrial.power_up.title",
+  "description": "quest.neroquests.industrial.power_up.desc",
+  "icon": "minecraft:lightning_rod",
+  "prerequisites": [
+    "neroquests:industrial/pressed_and_powdered",
+    "neroquests:industrial/machine_shop"
+  ],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:iron_block", "count": 3 },
+    { "type": "neroquests:collect_item", "item": "minecraft:gold_ingot", "count": 8 },
+    { "type": "neroquests:craft_item", "item": "minecraft:lightning_rod", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 90 },
+    { "type": "neroquests:item", "item": "minecraft:gold_ingot", "count": 4 },
+    { "type": "neroquests:currency", "amount": 80 }
+  ],
+  "scope": "player"
+}

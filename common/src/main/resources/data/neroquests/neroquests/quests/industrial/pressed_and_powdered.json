@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.industrial.pressed_and_powdered.title",
+  "description": "quest.neroquests.industrial.pressed_and_powdered.desc",
+  "icon": "minecraft:redstone_block",
+  "prerequisites": ["neroquests:industrial/forge_ahead"],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:redstone_block", "count": 1 },
+    { "type": "neroquests:collect_item", "tag": "c:dusts/redstone", "count": 16 },
+    { "type": "neroquests:collect_item", "tag": "c:plates/iron", "count": 8 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 70 },
+    { "type": "neroquests:currency", "amount": 60 }
+  ],
+  "scope": "player"
+}

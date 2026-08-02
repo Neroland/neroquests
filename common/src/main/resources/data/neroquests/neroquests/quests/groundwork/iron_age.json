@@ -1,0 +1,16 @@
+{
+  "title": "quest.neroquests.groundwork.iron_age.title",
+  "description": "quest.neroquests.groundwork.iron_age.desc",
+  "icon": "minecraft:iron_ingot",
+  "prerequisites": ["neroquests:groundwork/coal_and_torches"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "minecraft:furnace", "count": 1 },
+    { "type": "neroquests:collect_item", "item": "minecraft:iron_ingot", "count": 16 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 40 },
+    { "type": "neroquests:item", "item": "minecraft:bucket", "count": 1 },
+    { "type": "neroquests:currency", "amount": 25 }
+  ],
+  "scope": "player"
+}

@@ -17,6 +17,9 @@ public final class Services {
 
     public static final PlatformInfo PLATFORM = load(PlatformInfo.class);
 
+    /** The loader's packet-send implementation (see {@link NetworkPlatform}). */
+    public static final NetworkPlatform NETWORK = load(NetworkPlatform.class);
+
     private Services() {
     }
 

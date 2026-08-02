@@ -1,0 +1,13 @@
+{
+  "title": "chapter.neroquests.industrial.title",
+  "icon": "minecraft:blast_furnace",
+  "quests": [
+    { "quest": "neroquests:industrial/forge_ahead", "x": 0, "y": 0 },
+    { "quest": "neroquests:industrial/bulk_smelting", "x": 2, "y": 0 },
+    { "quest": "neroquests:industrial/pressed_and_powdered", "x": 2, "y": 2 },
+    { "quest": "neroquests:industrial/machine_shop", "x": 4, "y": 0 },
+    { "quest": "neroquests:industrial/alloy_ambitions", "x": 4, "y": 4 },
+    { "quest": "neroquests:industrial/power_up", "x": 6, "y": 1 },
+    { "quest": "neroquests:industrial/age_of_industry", "x": 8, "y": 1 }
+  ]
+}
