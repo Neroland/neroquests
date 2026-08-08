@@ -7,6 +7,9 @@
     { "quest": "neroquests:space_race/reach_for_orbit", "x": 4, "y": 0 },
     { "quest": "neroquests:space_race/green_horizon", "x": 6, "y": 2 },
     { "quest": "neroquests:space_race/first_colony", "x": 6, "y": 0 },
+    { "quest": "neroquests:space_race/breathing_room", "x": 8, "y": 3 },
+    { "quest": "neroquests:space_race/full_larder", "x": 10, "y": 3 },
+    { "quest": "neroquests:space_race/settled_ground", "x": 8, "y": 5 },
     { "quest": "neroquests:space_race/deep_space", "x": 8, "y": 0 },
     { "quest": "neroquests:space_race/united_frontier", "x": 10, "y": 1 }
   ]

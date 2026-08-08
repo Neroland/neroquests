@@ -13,6 +13,7 @@ import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.RewardSpec;
 import za.co.neroland.neroquests.quest.objective.CollectItemObjective;
 import za.co.neroland.neroquests.quest.objective.CraftItemObjective;
+import za.co.neroland.neroquests.quest.objective.CustomEventObjective;
 import za.co.neroland.neroquests.quest.objective.EntityTarget;
 import za.co.neroland.neroquests.quest.objective.GateOpenObjective;
 import za.co.neroland.neroquests.quest.objective.ItemTarget;
@@ -60,6 +61,12 @@ public final class QuestBookText {
         }
         if (spec instanceof QuestCompleteObjective chain) {
             return Component.translatable(G + "objective.quest_complete", questName(chain.quest()));
+        }
+        if (spec instanceof CustomEventObjective event) {
+            // The channel id is the only stable thing to show: its meaning belongs to the publishing
+            // mod, and NeroQuests has no dependency on it to ask for a nicer name.
+            return Component.translatable(G + "objective.custom_event",
+                    Component.literal(event.channel().toString()));
         }
         return Component.translatable(G + "objective.unknown", Component.literal(spec.typeId().toString()));
     }

@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.quest;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.objective.CollectItemObjective;
 import za.co.neroland.neroquests.quest.objective.CraftItemObjective;
+import za.co.neroland.neroquests.quest.objective.CustomEventObjective;
 import za.co.neroland.neroquests.quest.objective.GateOpenObjective;
 import za.co.neroland.neroquests.quest.objective.KillEntityObjective;
 import za.co.neroland.neroquests.quest.objective.QuestCompleteObjective;
@@ -19,11 +20,12 @@ import za.co.neroland.neroquests.quest.reward.XpReward;
  * datapack file, or every objective/reward would decode as "unknown type" and drop its quest.
  *
  * <p>The objective set is complete for the engine: gather ({@code collect_item}), make
- * ({@code craft_item}), fight ({@code kill_entity}), travel ({@code reach_dimension}), ecosystem
- * progression ({@code gate_open}) and quest chaining ({@code quest_complete}). The reward set is
- * complete too: loot ({@code item}), experience ({@code xp}), ecosystem progression
- * ({@code gate}) and the two economy payouts ({@code currency}, {@code reputation}) that degrade to
- * a no-op until a sibling mod implements Core's contract.
+ * ({@code craft_item}), fight ({@code kill_entity}), travel ({@code reach_dimension}), personal
+ * ecosystem progression ({@code gate_open}), world-state ecosystem events ({@code custom_event})
+ * and quest chaining ({@code quest_complete}). The reward set is complete too: loot
+ * ({@code item}), experience ({@code xp}), ecosystem progression ({@code gate}) and the two economy
+ * payouts ({@code currency}, {@code reputation}) that degrade to a no-op until a sibling mod
+ * implements Core's contract.
  */
 public final class QuestTypes {
 
@@ -50,6 +52,10 @@ public final class QuestTypes {
     /** Objective {@code neroquests:gate_open}. */
     public static final ObjectiveType<GateOpenObjective> GATE_OPEN =
             ObjectiveTypes.register(GateOpenObjective.TYPE_ID, GateOpenObjective.CODEC);
+
+    /** Objective {@code neroquests:custom_event}. */
+    public static final ObjectiveType<CustomEventObjective> CUSTOM_EVENT =
+            ObjectiveTypes.register(CustomEventObjective.TYPE_ID, CustomEventObjective.CODEC);
 
     /** Reward {@code neroquests:xp}. */
     public static final RewardType<XpReward> XP =

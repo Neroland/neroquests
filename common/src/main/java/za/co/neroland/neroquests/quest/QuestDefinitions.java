@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -372,10 +373,11 @@ public final class QuestDefinitions {
     // --- validation --------------------------------------------------------
 
     /**
-     * Drops every quest that cannot work, in three passes: unusable bodies (no objectives, or
-     * an unregistered objective/reward type), then dangling prerequisite references (pruned
-     * from the quest, which survives), then prerequisite cycles (every quest in or behind a
-     * cycle is dropped). The surviving map is in dependency order.
+     * Drops every quest that cannot work, in three passes: unusable bodies (no objectives, an
+     * unregistered objective/reward type, or an objective that could never advance at the quest's
+     * scope), then dangling prerequisite references (pruned from the quest, which survives), then
+     * prerequisite cycles (every quest in or behind a cycle is dropped). The surviving map is in
+     * dependency order.
      */
     private static Map<Identifier, Quest> validateQuests(Map<Identifier, Quest> parsed,
                                                          List<ValidationIssue> collected) {
@@ -394,6 +396,16 @@ public final class QuestDefinitions {
                         quest.id(), unknownType);
                 collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, quest.id(),
                         "unregistered objective/reward type " + unknownType));
+                continue;
+            }
+            String scopeMismatch = firstScopeMismatch(quest);
+            if (scopeMismatch != null) {
+                NeroQuestsCommon.LOGGER.warn(
+                        "[NeroQuests] Quest {} has an objective that can never advance at scope '{}' "
+                                + "({}); dropped.",
+                        quest.id(), quest.scope().name().toLowerCase(Locale.ROOT), scopeMismatch);
+                collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, quest.id(),
+                        "objective can never advance at this quest's scope: " + scopeMismatch));
                 continue;
             }
             usable.put(quest.id(), quest);
@@ -488,6 +500,24 @@ public final class QuestDefinitions {
                     : chapter.withQuests(kept));
         }
         return Collections.unmodifiableMap(accepted);
+    }
+
+    /**
+     * The reason the first objective that is incompatible with this quest's {@code scope} could
+     * never advance, or null when every objective can. This catches the one authoring mistake the
+     * codec cannot: a {@code custom_event} objective left on the default {@code audience: world},
+     * which writes shared progress, inside a {@code scope: player} quest that has none. Dropping the
+     * quest names the mistake in {@code /neroquests reload-check} instead of leaving a player
+     * staring at a counter that never ticks.
+     */
+    private static String firstScopeMismatch(Quest quest) {
+        for (ObjectiveSpec objective : quest.objectives()) {
+            Optional<String> reason = objective.unusableInScope(quest.scope());
+            if (reason.isPresent()) {
+                return reason.get();
+            }
+        }
+        return null;
     }
 
     /** The first unregistered objective/reward type id in this quest, or null if all are known. */

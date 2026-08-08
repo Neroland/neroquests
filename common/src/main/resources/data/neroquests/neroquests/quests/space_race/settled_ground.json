@@ -1,0 +1,19 @@
+{
+  "title": "quest.neroquests.space_race.settled_ground.title",
+  "description": "quest.neroquests.space_race.settled_ground.desc",
+  "icon": "minecraft:bricks",
+  "prerequisites": ["neroquests:space_race/first_colony"],
+  "objectives": [
+    {
+      "type": "neroquests:custom_event",
+      "channel": "nerocolonies:structures",
+      "min_value": 3,
+      "audience": "everyone"
+    }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 200 },
+    { "type": "neroquests:currency", "amount": 250 }
+  ],
+  "scope": "player"
+}

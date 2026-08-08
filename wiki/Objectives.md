@@ -20,7 +20,7 @@ behaviour:
 | Style | How it moves | Can it go down? | Types |
 | --- | --- | --- | --- |
 | **Measured** | Recounted from the world as it is right now | Only `collect_item` | `collect_item`, `reach_dimension`, `gate_open`, `quest_complete` |
-| **Counted** | Adds up as events happen | No | `craft_item`, `kill_entity` |
+| **Counted** | Adds up as events happen | No | `craft_item`, `kill_entity`, `custom_event` |
 
 A **measured** objective is recomputed rather than tallied, which makes it impossible to farm — you
 cannot cycle the same ten iron ingots through your inventory and be credited twenty. The trade-off
@@ -149,6 +149,54 @@ one of the boxes to tick *inside* an already-available quest.
 Completing a quest re-checks every other quest that names it, so finishing one can finish the next
 in the same instant. Quest completion never reverses, so these chains always settle.
 
+### `neroquests:custom_event`
+
+Another mod reported that one of its tracked quantities crossed a threshold.
+
+```json
+{ "type": "neroquests:custom_event", "channel": "nerocolonies:oxygen", "direction": "rising" }
+{ "type": "neroquests:custom_event", "channel": "nerocolonies:structures", "min_value": 3,
+  "audience": "everyone" }
+```
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `channel` | id | yes | — | The quantity to watch, as `<modid>:<channel>`. |
+| `event_scope` | string | no | any | Exact match on the crossing's scope key — *where* it crossed. |
+| `direction` | `rising` \| `falling` \| `any` | no | `any` | Which way the value went. |
+| `min_value` | integer | no | none | The crossing's value must be at least this. |
+| `max_value` | integer | no | none | The crossing's value must be at most this. |
+| `count` | integer ≥ 1 | no | `1` | How many matching crossings are needed. |
+| `audience` | `world` \| `everyone` | no | `world` | Who the crossing is credited to. |
+
+Where [`gate_open`](#neroquestsgate_open) waits on **your** progress, this waits on the **world's**.
+The publishing mod fires the crossing on Neroland Core's shared event bus and NeroQuests listens, so
+neither mod imports the other and a quest can be written against a mod that is not even installed.
+
+Counted, and the tally never falls. A crossing is an event, not a state you can re-measure, so one
+that happened while you were logged out is simply missed — the same way a kill nobody made credits
+nobody.
+
+**`rising` does not mean "good".** Core defines it as "the value crossed upward", which is a recovery
+on `nerocolonies:oxygen` and a *worsening* on `nerotech:pollution`.
+
+**`audience` is the field to get right.** A crossing names a place or a system and never a person —
+that is a privacy rule the publishers are held to — so nothing in the event says who should be
+credited:
+
+| `audience` | Who is credited | Notes |
+| --- | --- | --- |
+| `world` (default) | The quest's shared counter, **once** per crossing | Needs `"scope": "server"`. |
+| `everyone` | Every online player working on the quest | The explicit opt-in for letting world news tick a personal quest. |
+
+The conservative default is deliberate: without it, one colony's good news would silently complete a
+personal quest for everybody logged in, including people nowhere near it. A `custom_event` left on
+`world` inside a `"scope": "player"` quest could never advance, so the loader drops that quest and
+says why in `/neroquests reload-check`.
+
+[Quest format](Quest-Format.md) carries the `<modid>:<channel>` convention and **the table of channels
+that exist today** across Nerotech, NeroColonies and NeroCreatures.
+
 ## Server-scoped quests
 
 A quest with `"scope": "server"` keeps **one shared set of counters for the whole world**. Any
@@ -173,12 +221,17 @@ Either way the quest stays completable, and the offending objective is logged on
 naming only resource ids — never player data.
 
 An objective counts as "missing content" when its item or entity id is unregistered, its tag
-resolves to nothing, its dimension is not loaded, or the quest it points at no longer exists. Note
-that a quest whose objectives *all* degrade completes as soon as it becomes available; that is the
-intended consequence of `skip`.
+resolves to nothing, its dimension is not loaded, its `custom_event` channel is namespaced to a mod
+that is not installed, or the quest it points at no longer exists. Note that a quest whose objectives
+*all* degrade completes as soon as it becomes available; that is the intended consequence of `skip`.
 
 `gate_open` is the one exception — Core resolves any gate id, so an unknown gate is simply a closed
 gate rather than missing content.
+
+A `custom_event` channel whose mod *is* installed but whose publisher is switched off (NeroColonies'
+`thresholdEventsEnabled`, Nerotech's `pollutionEventThreshold`) is **not** missing content. The mod is
+there, so the objective waits rather than degrading — which is the right answer, because an operator
+can turn the publisher back on.
 
 ## See also
 

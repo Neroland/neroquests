@@ -1,5 +1,6 @@
 package za.co.neroland.neroquests.quest;
 
+import java.util.Optional;
 import java.util.OptionalInt;
 
 import com.mojang.serialization.Codec;
@@ -8,6 +9,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 
+import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
 import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
 import za.co.neroland.neroquests.quest.engine.QuestEngine;
 
@@ -93,6 +95,33 @@ public interface ObjectiveSpec {
      */
     default int creditKill(Entity victim, ObjectiveContext context) {
         return 0;
+    }
+
+    /**
+     * Units credited by one Neroland Core threshold crossing. Return {@code 0} when this objective
+     * does not care about that channel, direction, scope key or value.
+     *
+     * <p>Unlike a craft or a kill, a crossing names a <b>place or system and never a player</b>
+     * (Core's {@code ThresholdCrossing} contract), so the trigger evaluates it once per online
+     * player and each objective decides for itself who the news belongs to — see
+     * {@link za.co.neroland.neroquests.quest.objective.CustomEventObjective.Audience}.
+     */
+    default int creditThreshold(ThresholdCrossing crossing, ObjectiveContext context) {
+        return 0;
+    }
+
+    /**
+     * Why this objective could never advance inside a quest of {@code scope} — a short,
+     * operator-facing reason — or {@linkplain Optional#empty() empty} when the two are compatible.
+     *
+     * <p>Checked once per definition load, not per evaluation: an objective that cannot move is an
+     * authoring mistake, and drops its quest with a named reason (visible in
+     * {@code /neroquests reload-check}) rather than leaving a player staring at a counter that never
+     * ticks. <b>Resource ids and plain words only</b> — this is logged and must never carry player
+     * data.
+     */
+    default Optional<String> unusableInScope(QuestScope scope) {
+        return Optional.empty();
     }
 
     /**

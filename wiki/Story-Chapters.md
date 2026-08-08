@@ -11,7 +11,7 @@ Open it with the [quest book](Quest-Book.md). Chapters appear as tabs, in story 
 | --- | --- | --- | --- |
 | **Groundwork** | Crafting table | 10 | Vanilla survival: tools, light, iron, redstone, the first automation, diamonds, obsidian |
 | **Industrial Age** | Blast furnace | 7 | Bulk smelting, processed materials, a machine shop, the parts list of a power plant |
-| **The Space Race** | End crystal | 7 | Orbit, other worlds, the first colony, deep space, and one world-wide finale |
+| **The Space Race** | End crystal | 10 | Orbit, other worlds, the first colony, keeping it alive, deep space, and one world-wide finale |
 
 Every quest is an ordinary datapack file — see [Quest format](Quest-Format.md). Nothing here is
 hard-coded, so a pack can extend, rebalance, or replace the whole line by shipping quests with the
@@ -53,8 +53,17 @@ quests forward without NeroQuests depending on it at all.
 Two quests also ask you to set foot on another world. On a server with no such worlds installed,
 those steps degrade instead of blocking, and the chapter reads as a story rather than a checklist.
 
-Its finale, **A United Frontier**, is the one `scope: server` quest in the whole line: a world goal,
-completed once, for everybody. See [Quest format](Quest-Format.md) for what server scope means, and
+A short branch off *First Colony* — **Breathing Room**, **Full Larder** and **Settled Ground** — is
+the chapter's other kind of ecosystem hook. Instead of a milestone you reach, these wait on something
+the world does: a colony's life support coming back up, a settlement climbing out of famine, a third
+building going up. They listen on Core's shared event bus through
+[`custom_event`](Objectives.md#neroquestscustom_event) objectives, so a colony mod drives them with no
+dependency in either direction, and a server without one sees them degrade like any other absent
+content. Two of the three are `scope: server` world goals; **Settled Ground** is the personal one,
+credited to everybody who is online when it happens.
+
+Its finale, **A United Frontier**, is a `scope: server` quest too: a world goal, completed once, for
+everybody. See [Quest format](Quest-Format.md) for what server scope means, and
 [Rewards](Rewards.md) for how its gate reward is written.
 
 ## Turning the built-in line off

@@ -1,0 +1,21 @@
+{
+  "title": "quest.neroquests.space_race.full_larder.title",
+  "description": "quest.neroquests.space_race.full_larder.desc",
+  "icon": "minecraft:cake",
+  "prerequisites": ["neroquests:space_race/breathing_room"],
+  "objectives": [
+    {
+      "type": "neroquests:custom_event",
+      "channel": "nerocolonies:food_stock",
+      "direction": "rising",
+      "audience": "world"
+    }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 250 },
+    { "type": "neroquests:item", "item": "minecraft:golden_carrot", "count": 8 },
+    { "type": "neroquests:currency", "amount": 300 }
+  ],
+  "scope": "server",
+  "visible_gate": "nerolandcore:first_colony"
+}

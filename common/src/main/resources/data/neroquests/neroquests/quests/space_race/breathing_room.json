@@ -1,0 +1,20 @@
+{
+  "title": "quest.neroquests.space_race.breathing_room.title",
+  "description": "quest.neroquests.space_race.breathing_room.desc",
+  "icon": "minecraft:conduit",
+  "prerequisites": [],
+  "objectives": [
+    {
+      "type": "neroquests:custom_event",
+      "channel": "nerocolonies:oxygen",
+      "direction": "rising",
+      "audience": "world"
+    }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 200 },
+    { "type": "neroquests:currency", "amount": 250 }
+  ],
+  "scope": "server",
+  "visible_gate": "nerolandcore:first_colony"
+}

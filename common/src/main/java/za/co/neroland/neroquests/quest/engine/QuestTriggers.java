@@ -1,5 +1,9 @@
 package za.co.neroland.neroquests.quest.engine;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import net.minecraft.server.MinecraftServer;
@@ -10,10 +14,13 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 import za.co.neroland.nerolandcore.event.CoreEvents;
+import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
 import za.co.neroland.nerolandcore.progression.GateEvents.GateChange;
 import za.co.neroland.nerolandcore.progression.GateScope;
 import za.co.neroland.neroquests.network.QuestSync;
+import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
+import za.co.neroland.neroquests.quest.QuestScope;
 import za.co.neroland.neroquests.quest.reward.RewardLog;
 
 /**
@@ -24,10 +31,11 @@ import za.co.neroland.neroquests.quest.reward.RewardLog;
  * <h2>Where the triggers come from</h2>
  *
  * <ul>
- *   <li><b>Progression gates</b> — {@link #init()} subscribes to Neroland Core's own change bus,
- *       which is pure server-side Java and therefore needs no per-loader wiring at all. This is
- *       also how another mod's milestones reach a quest: Nerospace opening
- *       {@code reached_orbit} lands here with zero Nerospace dependency.</li>
+ *   <li><b>Progression gates and threshold crossings</b> — {@link #init()} subscribes to Neroland
+ *       Core's own change buses, which are pure server-side Java and therefore need no per-loader
+ *       wiring at all. This is also how another mod reaches a quest: Nerospace opening
+ *       {@code reached_orbit}, or NeroColonies reporting that a colony's life support came back,
+ *       lands here with zero dependency on either mod.</li>
  *   <li><b>Crafting</b> — one vanilla-targeting mixin in {@code common}
  *       ({@code ItemStackMixin} on {@code ItemStack#onCraftedBy}) rather than three loader
  *       subscriptions. NeoForge and Forge do have a crafting event, but Fabric does not, and one
@@ -80,15 +88,23 @@ public final class QuestTriggers {
     }
 
     /**
-     * Subscribe to the loader-agnostic Neroland Core event bus. Called once from common init.
+     * Subscribe to the loader-agnostic Neroland Core event buses. Called once from common init.
      *
-     * <p>TODO (deferred): {@code CoreEvents.onThreshold} is intentionally not subscribed yet. It
-     * would drive a {@code neroquests:custom_event} objective type — a quest reacting to, say,
-     * Nerotech's regional pollution crossing a threshold — but that objective type is out of scope
-     * for this stage, and subscribing without one would only add a no-op listener.
+     * <p><b>Both buses are add-only.</b> Core exposes no way to remove a listener from either
+     * {@code GateEvents} or {@code ThresholdEvents}, so the only correct lifecycle is to subscribe
+     * exactly once per JVM — which is what common init gives us, since it runs during mod
+     * construction and not per world. Nothing is therefore leaked across an integrated-server world
+     * switch, and there is nothing to unsubscribe on server stop. Per-<em>server</em> state is
+     * dropped instead of unsubscribed: {@link #serverTick} resets it the moment a different
+     * {@link MinecraftServer} instance appears, and both handlers do nothing at all before the first
+     * tick of a world, when there is no server to resolve players against.
+     *
+     * <p>Neither handler can outlive a world in practice either: both buses are fired only from
+     * server-side code, so a shutdown world publishes nothing for a stale subscription to see.
      */
     public static void init() {
         CoreEvents.onProgression(QuestTriggers::gatesChanged);
+        CoreEvents.onThreshold(QuestTriggers::thresholdCrossed);
     }
 
     // --- triggers -----------------------------------------------------------
@@ -215,6 +231,65 @@ public final class QuestTriggers {
         }
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             QuestEngine.evaluate(player);
+        }
+    }
+
+    /**
+     * Another mod reported that one of its tracked quantities crossed a threshold — a region's
+     * pollution, a colony's life support, a boss's phase. Feeds {@code neroquests:custom_event}
+     * objectives.
+     *
+     * <h2>Why this fans out</h2>
+     *
+     * <p>Core's {@code ThresholdCrossing} names a <b>place or system and never a person</b>
+     * (POPIA/GDPR: publishers must not encode a player into a crossing), so unlike a craft or a kill
+     * there is no player to hand the credit to. The trigger therefore offers the crossing to every
+     * online player's evaluation pass and lets each objective decide who the news belongs to, which
+     * is what the objective's {@code audience} field expresses.
+     *
+     * <h2>Why a shared counter still only moves once</h2>
+     *
+     * <p>A {@code scope: server} quest keeps one counter for the whole world, so N online players
+     * fanning out over one crossing must not credit it N times. Each objective instance is claimed
+     * by the first pass that credits it — by identity, because every objective in a definition file
+     * decodes to its own instance — and later passes in the same fan-out see it taken. Personal
+     * counters are untouched by that rule: an {@code audience: everyone} objective on a
+     * {@code scope: player} quest legitimately credits each player's own row.
+     *
+     * <h2>Cost</h2>
+     *
+     * <p>One crossing costs at most one extra sweep of the online players, and publishers fire only
+     * on an actual crossing (a colony that has been starving for an hour publishes nothing further),
+     * so this is bounded by how often the world genuinely changes state rather than by tick rate. A
+     * world with no quests loaded costs nothing at all.
+     */
+    public static void thresholdCrossed(ThresholdCrossing crossing) {
+        MinecraftServer server = currentServer;
+        if (server == null || crossing == null || crossing.channel() == null) {
+            return;
+        }
+        if (QuestDefinitions.questsForServer(server).isEmpty()) {
+            return;
+        }
+        List<ServerPlayer> players = List.copyOf(server.getPlayerList().getPlayers());
+        if (players.isEmpty()) {
+            // Nobody to evaluate. Crossings are events, not state: a quest waiting on one simply
+            // waits for the next, exactly as a kill nobody saw credits nobody.
+            return;
+        }
+        Set<ObjectiveSpec> claimed = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (ServerPlayer player : players) {
+            QuestEngine.evaluate(player, (objective, context) -> {
+                int amount = objective.creditThreshold(crossing, context);
+                if (amount <= 0) {
+                    return 0;
+                }
+                // Shared world progress moves once per crossing, however many people were online.
+                if (context.scope() == QuestScope.SERVER && !claimed.add(objective)) {
+                    return 0;
+                }
+                return amount;
+            });
         }
     }
 
