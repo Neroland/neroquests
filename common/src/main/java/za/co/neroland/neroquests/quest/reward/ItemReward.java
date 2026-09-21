@@ -82,7 +82,11 @@ public record ItemReward(Identifier item, int count) implements RewardSpec {
             int size = Math.min(remaining, perStack);
             ItemStack stack = new ItemStack(resolved, size);
             if (!player.addItem(stack)) {
+                //? if >=26.3 {
+                /*player.drop(stack, false, net.minecraft.util.Prediction.SERVER_ONLY);
+                *///?} else {
                 player.drop(stack, false);
+                //?}
             }
             remaining -= size;
         }
