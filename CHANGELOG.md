@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-09-24
+
+EMI compatibility. No gameplay, id, tag or config change.
+
+### Added
+
+- **EMI support.** NeroQuests adds no recipes of its own, so nothing needed a plugin. The build now
+  compiles against the community EMI Unofficial Port (Unstable), the only EMI build for Minecraft 26.x,
+  and dev clients load it with `-PwithEmi` (default runs stay JEI-only). EMI stays optional.
+
 ## [0.2.0-beta.1] - 2026-09-20
 
 Minecraft **26.3** support, plus the changes previously listed under *Unreleased*.
