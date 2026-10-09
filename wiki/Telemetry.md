@@ -1,8 +1,8 @@
 # Telemetry (anonymous crash reporting)
 
 NeroQuests sends **anonymous crash reports** so bugs get fixed without anyone having to
-file a report by hand. It is on by default, it is disclosed here and in
-[`PRIVACY.md`](../PRIVACY.md), and you can **turn it off**.
+file a report by hand. It is **on by default** and **opt-out**: it is disclosed here and in
+[`PRIVACY.md`](../PRIVACY.md), and you can turn it off with `telemetryEnabled=false`.
 
 Reports go to **Sentry**, on EU ingest servers.
 

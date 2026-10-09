@@ -32,6 +32,14 @@ The build is the repo root, with a flattened cross-loader structure driven by St
 
 See [`AGENTS.md`](AGENTS.md) / [`CLAUDE.md`](CLAUDE.md) for agent and contributor context.
 
+## Privacy
+
+NeroQuests keeps quest progress minimal and erasable through Neroland Core's shared erasure hook.
+It also ships anonymous, NeroQuests-only crash reporting via Sentry (EU servers) that is
+**on by default** and **opt-out**: set `telemetryEnabled=false` in `config/neroquests.properties`
+to switch it off. Reports never contain IPs, usernames, UUIDs, quest progress or world data. Full
+disclosure: [`PRIVACY.md`](PRIVACY.md).
+
 ## Docs
 
 - [`wiki/Home.md`](wiki/Home.md) — player- and contributor-facing documentation

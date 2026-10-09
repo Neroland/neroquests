@@ -1,3 +1,11 @@
+[![NeroLink App — Beta](https://img.shields.io/badge/NeroLink_App-Now_in_Beta-60d4e8?style=for-the-badge)](https://nerolandmc.net/nerolink/#beta) [![Explore the Neroland ecosystem](https://img.shields.io/badge/Explore-The_Neroland_Ecosystem-1a5a6c?style=for-the-badge)](https://nerolandmc.net/ecosystem/)
+
+> 📱 **NeroLink App Beta — your Neroland world on your phone.** Check energy, alerts and machines live, claim quest rewards and search your storage without logging in. **[Join the beta at nerolandmc.net →](https://nerolandmc.net/nerolink/#beta)**
+>
+> 🌌 **Explore the Neroland ecosystem.** See how NeroQuests fits together with the rest of the Nero mods — every mod, wiki and changelog in one place. **[View the ecosystem at nerolandmc.net →](https://nerolandmc.net/ecosystem/)** · [NeroQuests on the website](https://nerolandmc.net/mods/neroquests/)
+
+---
+
 # NeroQuests
 
 **One guided path through the whole ecosystem — story missions, daily contracts, faction quests and space-race milestones that turn a pile of mods into a designed journey.**
@@ -29,7 +37,9 @@ Built on **Neroland Core**: NeroQuests is the **primary writer** to Core's **pro
 
 ## Privacy (POPIA / GDPR)
 
-NeroQuests stores per-player quest progress — and keeps it minimal. It holds **only quest IDs, objective counters and completion timestamps**, keyed by the player's existing game **UUID** (never names, IPs, chat or any personal information beyond what Minecraft already keeps). Progress prunes on a **configurable retention** window for inactive players and clears on player-data deletion, all routed through Core's shared data-erasure hook — so a single erase request clears your NeroQuests data alongside every other Neroland mod. A per-player **opt-out** covers any non-essential tracking (aggregate counters, leaderboards) without breaking gameplay. No telemetry leaves the server by default; any optional crash reporting is opt-out and carries only **version strings** — never names, UUIDs, IPs or world data.
+NeroQuests stores per-player quest progress — and keeps it minimal. It holds **only quest IDs, objective counters and completion timestamps**, keyed by the player's existing game **UUID** (never names, IPs, chat or any personal information beyond what Minecraft already keeps). Progress prunes on a **configurable retention** window for inactive players and clears on player-data deletion, all routed through Core's shared data-erasure hook — so a single erase request clears your NeroQuests data alongside every other Neroland mod. A per-player **opt-out** covers any non-essential tracking (aggregate counters, leaderboards) without breaking gameplay. Quest progress never leaves the server.
+
+> **Telemetry notice:** NeroQuests sends anonymous error reports (stack trace + mod/game versions only — never IPs, usernames, UUIDs, quest progress or world data) to the developers via Sentry (EU servers) so crashes can be fixed. On by default — opt out any time by setting `telemetryEnabled = false` in `config/neroquests.properties`. Full details: [PRIVACY.md](https://github.com/Neroland/neroquests/blob/main/PRIVACY.md).
 
 ## Why it fits the ecosystem
 
