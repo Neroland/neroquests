@@ -41,4 +41,16 @@ public interface RewardSpec {
      * amounts only.
      */
     void grant(RewardContext context);
+
+    /**
+     * For a {@code scope: server} quest (AUD-06): whether this reward acts on the world and is granted
+     * once per completion, rather than to each recipient. Player-targeted rewards (items, experience,
+     * currency, reputation, player/team gates) answer {@code false} — the default — and are granted to
+     * every online player who has the quest available, each at most once per quest.
+     *
+     * @param context the triggering player's context
+     */
+    default boolean worldLevel(RewardContext context) {
+        return false;
+    }
 }

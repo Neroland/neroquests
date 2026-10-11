@@ -12,6 +12,8 @@ import net.minecraft.resources.Identifier;
 import za.co.neroland.nerolandcore.link.LinkEvent;
 import za.co.neroland.nerolandcore.link.NeroLinkRegistry;
 import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.data.OwedReward;
+import za.co.neroland.neroquests.data.QuestProgressState;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
@@ -56,6 +58,52 @@ public final class QuestLinkEvents {
     /** Subscribe to the in-mod completion channel. Called from {@link QuestLinkModule#init()}. */
     static void init() {
         QuestCompletionListeners.onCompletion(QuestLinkEvents::onCompletion);
+        QuestProgressState.setOwedListener(new QuestProgressState.OwedListener() {
+            @Override
+            public void owed(UUID player, OwedReward entry) {
+                onOwed(player, entry);
+            }
+
+            @Override
+            public void settled(UUID player, OwedReward entry, long delivered, long remaining) {
+                onSettled(player, entry, delivered, remaining);
+            }
+        });
+    }
+
+    // --- reward_owed / reward_claimed (schema 2) -------------------------------
+
+    /** A reward was kept for {@code player}: own-only event plus the fixed-text alert (deduped hourly). */
+    static void onOwed(UUID player, OwedReward entry) {
+        if (player == null || entry == null) {
+            return;
+        }
+        JsonObject payload = QuestLinkJson.owedRow(entry);
+        payload.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
+        publish(LinkEvent.forPlayer(QuestLinkModule.MODULE_ID, QuestLinkModule.TOPIC_REWARD_OWED, player, payload));
+        QuestLinkAlerts.rewardWaiting(player);
+    }
+
+    /** Some of an owed entry was settled for {@code player}: own-only event. */
+    static void onSettled(UUID player, OwedReward entry, long delivered, long remaining) {
+        if (player == null || entry == null) {
+            return;
+        }
+        publish(LinkEvent.forPlayer(QuestLinkModule.MODULE_ID, QuestLinkModule.TOPIC_REWARD_CLAIMED, player,
+                claimedPayload(entry, delivered, remaining)));
+    }
+
+    /**
+     * {@code {schema_version, key, type, amount | item+count, currency?, quest?, remaining}} — what was just
+     * handed over ({@code amount}/{@code count} is the delivered part) and what is left on that entry.
+     */
+    static JsonObject claimedPayload(OwedReward entry, long delivered, long remaining) {
+        JsonObject payload = QuestLinkJson.owedRow(entry.withAmount(delivered));
+        payload.remove("created_at");
+        payload.remove("permanent");
+        payload.addProperty("remaining", remaining);
+        payload.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
+        return payload;
     }
 
     // --- quest_completed ------------------------------------------------------
@@ -69,8 +117,10 @@ public final class QuestLinkEvents {
         JsonObject payload = new JsonObject();
         payload.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
         payload.addProperty("quest", quest.id().toString());
-        payload.addProperty("title", quest.title());
+        QuestLinkJson.text(payload, quest.source(), "title", quest.title(), QuestLinkSnapshots.english(quest.id()));
         payload.addProperty("scope", QuestLinkSnapshots.scopeName(quest.scope()));
+        payload.addProperty("source", QuestLinkJson.sourceName(quest.source()));
+        payload.addProperty("namespace", quest.id().getNamespace());
         payload.addProperty("timestamp", System.currentTimeMillis());
         publish(serverScope
                 ? LinkEvent.broadcast(QuestLinkModule.MODULE_ID,
@@ -119,7 +169,7 @@ public final class QuestLinkEvents {
     }
 
     /**
-     * {@code {"schema_version":1,"scope":"player","quests":[{"quest":"…","title":"…",
+     * {@code {"schema_version":2,"scope":"player","quests":[{"quest":"…","title":"…",
      * "objectives":[{"index":0,"current":3,"target":10}]}]}}, or {@code null} when nothing
      * survived filtering.
      *
@@ -160,7 +210,8 @@ public final class QuestLinkEvents {
             JsonObject row = new JsonObject();
             row.addProperty("quest", questId.toString());
             if (quest != null) {
-                row.addProperty("title", quest.title());
+                QuestLinkJson.text(row, quest.source(), "title", quest.title(), QuestLinkSnapshots.english(quest.id()));
+                row.addProperty("scope", QuestLinkSnapshots.scopeName(quest.scope()));
             }
             row.add("objectives", objectives);
             quests.add(row);

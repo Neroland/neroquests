@@ -57,3 +57,4 @@ __pycache__/
 
 # node deps (e.g. tools/gradle-mcp markdownlint)
 node_modules/
+/fabric/versions/26.2/logs

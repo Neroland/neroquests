@@ -2,6 +2,8 @@ package za.co.neroland.neroquests.fabric;
 
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 
@@ -27,6 +29,9 @@ public final class FabricQuestEvents {
         // Periodic re-measure of collect / dimension / gate objectives (self-throttled to 1 Hz).
         ServerTickEvents.END_SERVER_TICK.register(QuestTriggers::serverTick);
 
+        // Drop every static reference to the stopped server (AUD-31).
+        ServerLifecycleEvents.SERVER_STOPPED.register(server -> QuestTriggers.serverStopped());
+
         // Kill credit. AFTER_DEATH is server-side only, and hands over exactly the pair the
         // trigger wants: the victim plus the damage source the credit is resolved from.
         ServerLivingEntityEvents.AFTER_DEATH.register(QuestTriggers::entityKilled);
@@ -35,6 +40,10 @@ public final class FabricQuestEvents {
         // connection can carry custom payloads, which is what this needs.
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 QuestTriggers.playerJoined(handler.player));
+
+        // Hand over items/experience kept while the player was dead (AUD-05).
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) ->
+                QuestTriggers.playerRespawned(newPlayer));
 
         // The /neroquests admin tree; the tree itself is loader-agnostic, and neither the build
         // context nor the dedicated/integrated selection changes it.

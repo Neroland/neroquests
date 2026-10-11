@@ -1,6 +1,7 @@
 package za.co.neroland.neroquests.platform;
 
 import java.util.List;
+import java.util.Optional;
 
 import net.fabricmc.api.EnvType;
 import net.fabricmc.loader.api.FabricLoader;
@@ -41,5 +42,10 @@ public final class FabricPlatformInfo implements PlatformInfo {
                 .map(m -> m.getMetadata().getId() + " " + m.getMetadata().getVersion().getFriendlyString())
                 .sorted()
                 .toList();
+    }
+
+    @Override
+    public Optional<String> modDisplayName(String modId) {
+        return FabricLoader.getInstance().getModContainer(modId).map(c -> c.getMetadata().getName());
     }
 }

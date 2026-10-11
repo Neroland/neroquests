@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import io.netty.handler.codec.DecoderException;
+
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -29,7 +31,8 @@ import za.co.neroland.neroquests.data.QuestProgressState;
  * <p><b>Snapshot-as-delta.</b> A change sends the whole (small) snapshot rather than a diff. A
  * player's rows are a handful of quest ids with a few integers each, so a full snapshot costs
  * about as much as a diff would and removes an entire class of client/server drift bugs. The
- * engine already collapses this to at most one payload per player per evaluation pass.
+ * engine marks players dirty during its passes and {@link QuestSync#flush} sends at most one payload per
+ * player per server tick (AUD-20).
  *
  * <p>TODO: if a pack ever makes the snapshot large enough to matter, switch to true deltas
  * (changed rows only, with a generation counter so the client can detect a missed update and ask
@@ -108,11 +111,18 @@ public record QuestProgressPayload(List<Row> own, List<Row> server) implements C
     }
 
     private static List<Row> readRows(RegistryFriendlyByteBuf buf) {
-        int count = Math.min(buf.readVarInt(), MAX_ROWS);
+        // AUD-35: a bad count is a broken packet — reject it rather than truncate and misread the rest.
+        int count = buf.readVarInt();
+        if (count < 0 || count > MAX_ROWS) {
+            throw new DecoderException("Bad quest progress row count " + count);
+        }
         List<Row> rows = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             Identifier quest = Identifier.tryParse(buf.readUtf());
-            int counterCount = Math.min(buf.readVarInt(), MAX_COUNTERS);
+            int counterCount = buf.readVarInt();
+            if (counterCount < 0 || counterCount > MAX_COUNTERS) {
+                throw new DecoderException("Bad quest progress counter count " + counterCount);
+            }
             List<Integer> counters = new ArrayList<>(counterCount);
             for (int c = 0; c < counterCount; c++) {
                 counters.add(buf.readVarInt());

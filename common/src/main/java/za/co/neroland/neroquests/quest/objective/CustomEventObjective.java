@@ -11,11 +11,11 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.resources.Identifier;
 
 import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
-import za.co.neroland.nerolandcore.platform.Services;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.QuestScope;
 import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
+import za.co.neroland.neroquests.quest.engine.SeenChannels;
 
 /**
  * Objective {@code neroquests:custom_event} — wait for another mod to report that one of its
@@ -194,13 +194,33 @@ public record CustomEventObjective(Identifier channel,
     }
 
     /**
-     * Whether the mod that publishes this channel is installed. The {@code <modid>:<channel>}
-     * convention is what makes this answerable: a channel nobody publishes can never fire, and
-     * treating it as missing content is what stops the quest from being stuck forever.
+     * Whether this channel can fire here (AUD-03), decided by the <b>quest's</b> namespace:
+     *
+     * <ul>
+     *   <li><b>A pack's quest</b> (namespace other than {@code neroquests}) — present iff the pack's
+     *       own mod is loaded, or its namespace is not a mod id at all (a server's datapack). The
+     *       pack author chose the channel; the pack being here is what counts.</li>
+     *   <li><b>The spine</b> ({@code neroquests:}) — present iff the channel's namespace is a loaded
+     *       mod, or the channel has actually been seen this session ({@link SeenChannels}), or its
+     *       namespace is not a mod id (a channel family no mod ships, e.g. from a server plugin).</li>
+     * </ul>
+     *
+     * <p>A channel counted absent degrades under {@code missingModObjectivePolicy}; and since a quest
+     * with no present objective is never completable and an autocompleted one pays nothing by default,
+     * absence can no longer be turned into a free completion.
      */
     @Override
     public boolean contentPresent(ObjectiveContext context) {
-        return Services.PLATFORM.isModLoaded(channel.getNamespace());
+        String questNamespace = context.quest() == null
+                ? NeroQuestsCommon.MOD_ID
+                : context.quest().getNamespace();
+        if (!NeroQuestsCommon.MOD_ID.equals(questNamespace)) {
+            return ContentIds.modLoaded(questNamespace) || !ContentIds.isModId(questNamespace);
+        }
+        String channelNamespace = channel.getNamespace();
+        return ContentIds.modLoaded(channelNamespace)
+                || SeenChannels.seen(channel)
+                || !ContentIds.isModId(channelNamespace);
     }
 
     @Override

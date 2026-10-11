@@ -1,12 +1,15 @@
 package za.co.neroland.neroquests.quest.objective;
 
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 
@@ -28,7 +31,7 @@ import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
  * <p>Because the recount is idempotent, how often it runs only affects latency. The engine runs it
  * on the cheap trigger points (a craft, a kill) and on a low-frequency server sweep.
  */
-public record CollectItemObjective(ItemTarget selector, int count) implements ObjectiveSpec {
+public record CollectItemObjective(ItemTarget selector, int count, boolean consume) implements ObjectiveSpec {
 
     public static final Identifier TYPE_ID =
             Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "collect_item");
@@ -36,8 +39,18 @@ public record CollectItemObjective(ItemTarget selector, int count) implements Ob
     public static final MapCodec<CollectItemObjective> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
             ItemTarget.MAP_CODEC.forGetter(CollectItemObjective::selector),
             Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("count", 1)
-                    .forGetter(CollectItemObjective::count)
-    ).apply(inst, CollectItemObjective::new));
+                    .forGetter(CollectItemObjective::count),
+            Codec.BOOL.optionalFieldOf("consume", Boolean.FALSE).forGetter(CollectItemObjective::boxedConsume)
+    ).apply(inst, CollectItemObjective::of));
+
+    /** Boxed-parameter factory for the codec (avoids the ECJ unboxing null-safety warning). */
+    private static CollectItemObjective of(ItemTarget selector, Integer count, Boolean consume) {
+        return new CollectItemObjective(selector, count.intValue(), consume.booleanValue());
+    }
+
+    private Boolean boxedConsume() {
+        return Boolean.valueOf(consume);
+    }
 
     @Override
     public Identifier typeId() {
@@ -72,9 +85,46 @@ public record CollectItemObjective(ItemTarget selector, int count) implements Ob
         return true;
     }
 
+    /**
+     * With {@code "consume": true} the items are handed in: the quest takes {@code count} matching
+     * items from the completing player when it completes. Showing the same stack on every account
+     * then completes it only once, which is the safer shape for anything that pays out.
+     */
+    @Override
+    public boolean takesOnComplete() {
+        return consume;
+    }
+
+    @Override
+    public boolean canTakeOnComplete(ObjectiveContext context) {
+        OptionalInt held = measure(context);
+        return held.isPresent() && held.getAsInt() >= count;
+    }
+
+    @Override
+    public void takeOnComplete(ObjectiveContext context) {
+        Inventory inventory = context.player().getInventory();
+        int remaining = count;
+        int size = inventory.getContainerSize();
+        for (int slot = 0; slot < size && remaining > 0; slot++) {
+            ItemStack stack = inventory.getItem(slot);
+            if (selector.matches(stack)) {
+                int taken = Math.min(remaining, stack.getCount());
+                stack.shrink(taken);
+                remaining -= taken;
+            }
+        }
+        inventory.setChanged();
+    }
+
     @Override
     public boolean contentPresent(ObjectiveContext context) {
         return selector.present();
+    }
+
+    @Override
+    public Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        return selector.typo();
     }
 
     @Override

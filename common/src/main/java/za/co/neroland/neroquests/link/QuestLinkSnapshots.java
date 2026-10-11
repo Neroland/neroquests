@@ -1,10 +1,13 @@
 package za.co.neroland.neroquests.link;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+import java.util.UUID;
+import java.util.function.Function;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -16,11 +19,13 @@ import za.co.neroland.nerolandcore.link.LinkSnapshotProvider;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.data.QuestProgressState;
-import za.co.neroland.neroquests.quest.Chapter;
+import za.co.neroland.neroquests.quest.Chapter;
+import za.co.neroland.neroquests.quest.EditorPermissions;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.QuestScope;
+import za.co.neroland.neroquests.quest.QuestStates;
 import za.co.neroland.neroquests.quest.RewardSpec;
 import za.co.neroland.neroquests.quest.reward.CurrencyReward;
 import za.co.neroland.neroquests.quest.reward.GateReward;
@@ -39,7 +44,11 @@ import za.co.neroland.neroquests.quest.reward.XpReward;
  *       keys, scope, state, per-objective {@code current}/{@code target} pair, completion stamp and
  *       a reward summary;</li>
  *   <li>{@code chapters} — the quest-book chapters, each listing the ids of the quests in it that
- *       this player may see (a chapter whose every quest is hidden is left out entirely).</li>
+ *       this player may see (a chapter whose every quest is hidden is left out entirely);</li>
+ *   <li>{@code custom_authoring}, {@code owed}, {@code progress} (schema 2) — whether the player may
+ *       author, their kept rewards, and every visible quest's counters in the progress-event shape.
+ *       The topic names {@code quest_completed}, {@code reward_owed} and {@code reward_claimed} also
+ *       answer with a sensible body, for the bridge's subscribe-time snapshot (AUD-08).</li>
  * </ul>
  *
  * <p>Any other section name yields an empty object, as Core's contract prescribes.
@@ -60,8 +69,12 @@ import za.co.neroland.neroquests.quest.reward.XpReward;
  */
 public final class QuestLinkSnapshots implements LinkSnapshotProvider {
 
-    private static final List<String> SECTIONS =
-            List.of(QuestLinkModule.SECTION_QUESTS, QuestLinkModule.SECTION_CHAPTERS);
+    private static final List<String> SECTIONS = List.of(QuestLinkModule.SECTION_QUESTS,
+            QuestLinkModule.SECTION_CHAPTERS, QuestLinkModule.SECTION_CUSTOM_AUTHORING,
+            QuestLinkModule.SECTION_OWED, QuestLinkModule.SECTION_PROGRESS);
+
+    /** At most this many rows in the {@code quest_completed} topic snapshot (most recent first). */
+    static final int RECENT_COMPLETIONS = 50;
 
     /** Quest states, as the app renders them. */
     private static final String STATE_COMPLETED = "completed";
@@ -100,6 +113,27 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
             if (QuestLinkModule.SECTION_CHAPTERS.equals(section)) {
                 return chapters(server, playerId);
             }
+            if (QuestLinkModule.SECTION_CUSTOM_AUTHORING.equals(section)) {
+                return QuestLinkJson.customAuthoring(
+                        EditorPermissions.canAuthor(server.getPlayerList().getPlayer(playerId)));
+            }
+            if (QuestLinkModule.SECTION_OWED.equals(section)
+                    || QuestLinkModule.TOPIC_REWARD_OWED.equals(section)) {
+                return QuestLinkJson.owedSection(QuestProgressState.get(server).owed(playerId));
+            }
+            if (QuestLinkModule.SECTION_PROGRESS.equals(section)) {
+                return progress(server, playerId);
+            }
+            // Topic names the bridge may snapshot on subscribe (AUD-08): a sensible body, never a bare {}.
+            if (QuestLinkModule.TOPIC_QUEST_COMPLETED.equals(section)) {
+                return recentCompletions(server, playerId);
+            }
+            if (QuestLinkModule.TOPIC_REWARD_CLAIMED.equals(section)) {
+                JsonObject root = new JsonObject();
+                root.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
+                root.add("claimed", new JsonArray()); // claims are not kept as history
+                return root;
+            }
             return new JsonObject(); // unknown section: nothing to say
         } catch (RuntimeException e) {
             // Section name only — never who asked (POPIA/GDPR). A failed snapshot must not
@@ -114,7 +148,7 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
     // --- section: quests ------------------------------------------------------
 
     /**
-     * {@code {"schema_version":1,"player_online":true,"counts":{…},"quests":[…]}} — one entry per
+     * {@code {"schema_version":2,"player_online":true,"counts":{…},"quests":[…]}} — one entry per
      * visible quest, in the definitions' dependency order (prerequisites first), which is a stable
      * order for the app to render.
      */
@@ -137,30 +171,25 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
                 continue; // hidden in game, hidden here
             }
             boolean serverScope = quest.scope() == QuestScope.SERVER;
-            Set<Identifier> completedSet = serverScope ? serverCompleted : playerCompleted;
             QuestProgress progress = (serverScope
                     ? state.serverProgress(quest.id())
                     : state.progress(playerId, quest.id())).orElse(QuestProgress.EMPTY);
 
             JsonObject entry = new JsonObject();
             entry.addProperty("id", quest.id().toString());
-            entry.addProperty("title", quest.title());
-            if (!quest.description().isEmpty()) {
-                entry.addProperty("description", quest.description());
-            }
+            QuestLinkJson.questIdentity(entry, quest.id(), quest.source(), quest.title(), quest.description(),
+                    chapterOf.get(quest.id()), !quest.modAbsent(), english(quest.id()));
             entry.addProperty("icon", quest.icon().toString());
             entry.addProperty("scope", scopeName(quest.scope()));
-            Identifier chapter = chapterOf.get(quest.id());
-            if (chapter != null) {
-                entry.addProperty("chapter", chapter.toString());
-            }
 
             JsonArray objectives = objectives(quest, progress);
             entry.add("objectives", objectives);
-            entry.add("prerequisites", ids(quest.prerequisites()));
+            // AUD-19: a hidden prerequisite is not named — the app learns nothing a player cannot see.
+            entry.add("prerequisites", visibleIds(quest.prerequisites(), definitions, openGates));
             entry.add("rewards", rewards(quest));
 
-            String questState = state(quest, progress, completedSet, objectives);
+            String questState = state(QuestStates.stateOf(quest, definitions, playerCompleted,
+                    serverCompleted, progress, openGates));
             entry.addProperty("state", questState);
             if (progress.isComplete()) {
                 entry.addProperty("completed_at", progress.completedAt());
@@ -205,6 +234,7 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
             objective.addProperty("target", target);
             // A resource id / tag label only (the same string the missing-content warning logs).
             objective.addProperty("content", spec.contentLabel());
+            objective.addProperty("text", QuestLinkJson.objectiveText(spec.typeId(), target, spec.contentLabel()));
             out.add(objective);
         }
         return out;
@@ -241,29 +271,22 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
     }
 
     /**
-     * Which of the four states this quest is in for this holder: complete, blocked by an unmet
-     * prerequisite, started, or simply not started yet.
+     * The wire name of a {@link QuestStates.State} — the shared rule (AUD-18), so the app, the book
+     * and the engine agree: complete, then locked (prerequisite unmet), then started, then available.
      */
-    private static String state(Quest quest, QuestProgress progress, Set<Identifier> completedSet,
-                                JsonArray objectives) {
-        if (progress.isComplete()) {
-            return STATE_COMPLETED;
-        }
-        if (!quest.prerequisitesMet(completedSet)) {
-            return STATE_LOCKED;
-        }
-        for (int index = 0; index < objectives.size(); index++) {
-            if (objectives.get(index).getAsJsonObject().get("current").getAsInt() > 0) {
-                return STATE_IN_PROGRESS;
-            }
-        }
-        return STATE_AVAILABLE;
+    private static String state(QuestStates.State state) {
+        return switch (state) {
+            case COMPLETED -> STATE_COMPLETED;
+            case LOCKED -> STATE_LOCKED;
+            case IN_PROGRESS -> STATE_IN_PROGRESS;
+            case AVAILABLE -> STATE_AVAILABLE;
+        };
     }
 
     // --- section: chapters ----------------------------------------------------
 
     /**
-     * {@code {"schema_version":1,"chapters":[{"id":"…","title":"…","icon":"…","quests":["…"]}]}} —
+     * {@code {"schema_version":2,"chapters":[{"id":"…","title":"…","icon":"…","quests":["…"]}]}} —
      * the chapters in id order, each listing only the quests this player may see. A chapter left
      * with no visible quests is omitted, so hidden content stays invisible.
      */
@@ -272,7 +295,11 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
         Set<Identifier> openGates = QuestLinkAccess.openGates(server, playerId);
 
         JsonArray out = new JsonArray();
-        for (Chapter chapter : QuestDefinitions.chaptersForServer(server).values()) {
+        List<Chapter> ordered = new ArrayList<>(QuestDefinitions.chaptersForServer(server).values());
+        ordered.sort(Comparator.comparing(chapter -> chapter.id().toString())); // the book's tab order
+        int order = -1;
+        for (Chapter chapter : ordered) {
+            order++;
             JsonArray questIds = new JsonArray();
             for (Chapter.Entry entry : chapter.quests()) {
                 Quest quest = definitions.get(entry.quest());
@@ -283,12 +310,7 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
             if (questIds.isEmpty()) {
                 continue;
             }
-            JsonObject row = new JsonObject();
-            row.addProperty("id", chapter.id().toString());
-            row.addProperty("title", chapter.title());
-            row.addProperty("icon", chapter.icon().toString());
-            row.add("quests", questIds);
-            out.add(row);
+            out.add(QuestLinkJson.chapterRow(chapter, order, questIds, english(chapter.id())));
         }
 
         JsonObject root = new JsonObject();
@@ -297,7 +319,105 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
         return root;
     }
 
+    // --- section: progress ----------------------------------------------------
+
+    /**
+     * {@code {"schema_version":2,"scope":"snapshot","quests":[{"quest","scope","title"?,"title_text"?,
+     * "objectives":[{"index","current","target"}],"completed_at"?}]}} — the shape of the {@code progress}
+     * event, but complete: every visible quest (own rows for player scope, world rows for server scope), so
+     * a client can replace its whole view from it (AUD-08: a bare {@code {}} wiped the app tab).
+     */
+    private static JsonObject progress(MinecraftServer server, UUID playerId) {
+        Map<Identifier, Quest> definitions = QuestDefinitions.questsForServer(server);
+        QuestProgressState state = QuestProgressState.get(server);
+        Set<Identifier> openGates = QuestLinkAccess.openGates(server, playerId);
+        JsonArray quests = new JsonArray();
+        for (Quest quest : definitions.values()) {
+            if (!quest.isVisible(openGates)) {
+                continue;
+            }
+            boolean serverScope = quest.scope() == QuestScope.SERVER;
+            QuestProgress progress = (serverScope
+                    ? state.serverProgress(quest.id())
+                    : state.progress(playerId, quest.id())).orElse(QuestProgress.EMPTY);
+            JsonObject row = new JsonObject();
+            row.addProperty("quest", quest.id().toString());
+            row.addProperty("scope", scopeName(quest.scope()));
+            QuestLinkJson.text(row, quest.source(), "title", quest.title(), english(quest.id()));
+            JsonArray objectives = new JsonArray();
+            List<ObjectiveSpec> specs = quest.objectives();
+            for (int index = 0; index < specs.size(); index++) {
+                int target = Math.max(1, specs.get(index).target());
+                JsonObject objective = new JsonObject();
+                objective.addProperty("index", index);
+                objective.addProperty("current", Math.min(Math.max(progress.counter(index), 0), target));
+                objective.addProperty("target", target);
+                objectives.add(objective);
+            }
+            row.add("objectives", objectives);
+            if (progress.isComplete()) {
+                row.addProperty("completed_at", progress.completedAt());
+            }
+            quests.add(row);
+        }
+        JsonObject root = new JsonObject();
+        root.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
+        root.addProperty("scope", "snapshot");
+        root.add("quests", quests);
+        return root;
+    }
+
+    /**
+     * Snapshot for the {@code quest_completed} topic: {@code {"schema_version":2,"completed":[{"quest",
+     * "scope","source","title"?,"title_text"?,"completed_at"}]}}, the requester's most recent visible
+     * completions (own player-scope and world server-scope), newest first, at most
+     * {@value #RECENT_COMPLETIONS}.
+     */
+    private static JsonObject recentCompletions(MinecraftServer server, UUID playerId) {
+        Map<Identifier, Quest> definitions = QuestDefinitions.questsForServer(server);
+        QuestProgressState state = QuestProgressState.get(server);
+        Set<Identifier> openGates = QuestLinkAccess.openGates(server, playerId);
+        List<JsonObject> rows = new ArrayList<>();
+        for (Quest quest : definitions.values()) {
+            if (!quest.isVisible(openGates)) {
+                continue;
+            }
+            QuestProgress progress = (quest.scope() == QuestScope.SERVER
+                    ? state.serverProgress(quest.id())
+                    : state.progress(playerId, quest.id())).orElse(QuestProgress.EMPTY);
+            if (!progress.isComplete()) {
+                continue;
+            }
+            rows.add(completionRow(quest, progress.completedAt()));
+        }
+        rows.sort(Comparator.comparingLong((JsonObject row) -> row.get("completed_at").getAsLong()).reversed());
+        JsonArray completed = new JsonArray();
+        rows.stream().limit(RECENT_COMPLETIONS).forEach(completed::add);
+        JsonObject root = new JsonObject();
+        root.addProperty("schema_version", QuestLinkModule.SCHEMA_VERSION);
+        root.add("completed", completed);
+        return root;
+    }
+
+    /** {@code {quest, scope, source, namespace, title?, title_text?, completed_at}}. */
+    static JsonObject completionRow(Quest quest, long completedAt) {
+        JsonObject row = new JsonObject();
+        row.addProperty("quest", quest.id().toString());
+        row.addProperty("scope", scopeName(quest.scope()));
+        row.addProperty("source", QuestLinkJson.sourceName(quest.source()));
+        row.addProperty("namespace", quest.id().getNamespace());
+        QuestLinkJson.text(row, quest.source(), "title", quest.title(), english(quest.id()));
+        row.addProperty("completed_at", completedAt);
+        return row;
+    }
+
     // --- helpers --------------------------------------------------------------
+
+    /** Translation key &rarr; bundled English text, looked up in {@code owner}'s namespace first. */
+    static Function<String, String> english(Identifier owner) {
+        String namespace = owner.getNamespace();
+        return key -> EnglishText.resolve(namespace, key);
+    }
 
     /** quest id &rarr; the chapter that claims it, built once per snapshot (a quest has at most one). */
     private static Map<Identifier, Identifier> chapterIndex(MinecraftServer server) {
@@ -310,9 +430,16 @@ public final class QuestLinkSnapshots implements LinkSnapshotProvider {
         return index;
     }
 
-    private static JsonArray ids(List<Identifier> source) {
+    /** The ids among {@code source} whose quest exists and is visible to the holder (AUD-19). */
+    private static JsonArray visibleIds(List<Identifier> source, Map<Identifier, Quest> definitions,
+                                        Set<Identifier> openGates) {
         JsonArray out = new JsonArray();
-        source.forEach(id -> out.add(id.toString()));
+        for (Identifier id : source) {
+            Quest quest = definitions.get(id);
+            if (quest != null && quest.isVisible(openGates)) {
+                out.add(id.toString());
+            }
+        }
         return out;
     }
 

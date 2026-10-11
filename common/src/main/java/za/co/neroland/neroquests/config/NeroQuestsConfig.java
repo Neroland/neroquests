@@ -44,7 +44,69 @@ public final class NeroQuestsConfig {
             "missingModObjectivePolicy", "skip", true,
             "How objectives referencing an absent mod's content (unknown id / empty tag) behave: "
                     + "'skip' (objective ignored, quest completable without it) or 'autocomplete' "
-                    + "(objective counts as done immediately).");
+                    + "(objective counts as done immediately). A quest with no objective present here is "
+                    + "never completable under either policy.");
+
+    public static final ConfigValue<Boolean> DEGRADED_COMPLETIONS_PAY = SCHEMA.bool(
+            "degradedCompletionsPay", false, true,
+            "Whether a quest completed with an objective auto-satisfied by "
+                    + "missingModObjectivePolicy=autocomplete still pays its rewards. Off by default, so "
+                    + "absent content can never be turned into free rewards.");
+
+    // --- Reward delivery (server-authoritative) -----------------------------
+    public static final ConfigValue<Boolean> OWED_ITEMS_DROP_WHEN_FULL = SCHEMA.bool(
+            "owedItemsDropWhenFull", false, true,
+            "When a player's inventory cannot hold an item reward: false (default) keeps the overflow for "
+                    + "them and delivers it once they have room; true drops it at their feet (the old behaviour).");
+
+    // --- Daily contracts (server-authoritative) ------------------------------
+    public static final ConfigValue<Boolean> DAILY_CONTRACTS_ENABLED = SCHEMA.bool(
+            "dailyContractsEnabled", true, true,
+            "Offer daily hand-in contracts (/neroquests contracts). Their credit rewards need an economy "
+                    + "with a budgeted payout API (NeroEconomy); without one no contract is offered.");
+
+    public static final ConfigValue<Integer> DAILY_CONTRACTS_PER_DAY = SCHEMA.intRange(
+            "dailyContractsPerDay", 3, 1, 10, true,
+            "How many contracts are drawn from the contract pool each (UTC) day. A player is offered only "
+                    + "those the economy's budget can still pay today.");
+
+    // --- In-game quest editor (server-authoritative, D1-D3) -----------------
+    public static final ConfigValue<Boolean> EDITOR_REQUIRES_CREATIVE = SCHEMA.bool(
+            "editorRequiresCreative", true, true,
+            "Whether being in Creative mode is enough to author custom quests (true, default). Set false so "
+                    + "only operators at editorMinOpLevel and players on the editor allow-list may author. "
+                    + "Spectators and dead players never may; /neroquests editor lock closes it for all but level 4.");
+
+    public static final ConfigValue<Integer> EDITOR_MIN_OP_LEVEL = SCHEMA.intRange(
+            "editorMinOpLevel", 2, 1, 4, true,
+            "Operator permission level that may author custom quests in any game mode.");
+
+    public static final ConfigValue<Integer> CUSTOM_QUEST_MAX_TOTAL = SCHEMA.intRange(
+            "customQuestMaxTotal", 500, 0, 5000, true,
+            "Most custom (editor-made) quests this world may hold.");
+
+    public static final ConfigValue<Integer> CUSTOM_CHAPTER_MAX = SCHEMA.intRange(
+            "customChapterMax", 20, 0, 200, true,
+            "Most custom (editor-made) chapters this world may hold.");
+
+    public static final ConfigValue<Integer> CUSTOM_REWARD_MAX_STACKS = SCHEMA.intRange(
+            "customRewardMaxStacks", 9, 0, 9, true,
+            "Most item-stack rewards one custom quest may pay (each at most one full stack).");
+
+    public static final ConfigValue<Integer> CUSTOM_REWARD_MAX_XP = SCHEMA.intRange(
+            "customRewardMaxXp", 500, 0, 100000, true,
+            "Most experience points one custom quest may pay per completion.");
+
+    public static final ConfigValue<Integer> CUSTOM_REWARD_MAX_CURRENCY = SCHEMA.intRange(
+            "customRewardMaxCurrency", 1000, 0, 1000000, true,
+            "Most currency one custom quest may pay per completion (paid through the economy's budgeted "
+                    + "payouts when NeroEconomy is installed).");
+
+    public static final ConfigValue<Boolean> CUSTOM_REWARDS_ESCROWED = SCHEMA.bool(
+            "customRewardsEscrowed", false, true,
+            "When true, item rewards of custom quests must be deposited by the author (taken from their "
+                    + "inventory, refunded when changed or deleted) and are paid from that deposit; loot-table "
+                    + "rewards are refused. For servers that let non-operators author quests.");
 
     // --- Data retention (POPIA/GDPR) ----------------------------------------
     public static final ConfigValue<Integer> RETENTION_DAYS = SCHEMA.intRange(

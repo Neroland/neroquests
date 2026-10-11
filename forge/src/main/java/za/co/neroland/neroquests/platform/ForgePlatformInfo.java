@@ -1,6 +1,7 @@
 package za.co.neroland.neroquests.platform;
 
 import java.util.List;
+import java.util.Optional;
 
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.ModList;
@@ -47,5 +48,10 @@ public final class ForgePlatformInfo implements PlatformInfo {
                 .map(m -> m.getModId() + " " + m.getVersion())
                 .sorted()
                 .toList();
+    }
+
+    @Override
+    public Optional<String> modDisplayName(String modId) {
+        return ModList.getModContainerById(modId).map(c -> c.getModInfo().getDisplayName());
     }
 }

@@ -1,10 +1,14 @@
 package za.co.neroland.neroquests.quest.objective;
 
+import java.util.Optional;
+import java.util.Set;
+
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
@@ -49,6 +53,11 @@ public record KillEntityObjective(EntityTarget selector, int count) implements O
     @Override
     public boolean contentPresent(ObjectiveContext context) {
         return selector.present();
+    }
+
+    @Override
+    public Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        return selector.typo();
     }
 
     @Override

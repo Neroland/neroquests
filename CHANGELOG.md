@@ -7,6 +7,266 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0-beta.1] - 2026-10-11
+
+Optional NeroEconomy integration: budgeted quest payouts, daily contracts and an economy objective.
+NeroEconomy stays optional — NeroQuests builds, loads and runs without it.
+
+### Added
+
+- **Budgeted quest payouts.** With NeroEconomy 0.3.0 or later installed, `neroquests:currency` credit
+  rewards are paid through its budgeted payout API (reason `quest_reward`) with a request key of
+  `nq:<sequence>:<quest id>` (never a player id or name). A refused payout is explained to the player
+  in chat and kept as **owed** in the quest data, then retried on their next join and every five
+  minutes while online with the same key, so it can never pay twice. Other currencies, or no
+  NeroEconomy, keep Core's `CurrencyApi.deposit`, whose result is now checked (a failed deposit is
+  also kept as owed).
+- **Daily contracts** (`/neroquests contracts`, `/neroquests contracts submit <contract>`, open to
+  every player): a few data-driven hand-in contracts drawn per UTC day from
+  `data/<namespace>/neroquests/contracts/`, each doable once per player per day, paid under the reason
+  `daily_contract`. A contract is offered only while the economy's budget can still pay it; without a
+  budgeted economy nothing is offered. Eight vanilla-item contracts ship. New settings
+  `dailyContractsEnabled` (default `true`) and `dailyContractsPerDay` (default `3`).
+- **`neroquests:economy` objective** — `event` `sold` | `bought` | `earned`, optional `item` or
+  `tag`, `count`. Fed by NeroEconomy's trade events; `earned` excludes NeroQuests' own payouts.
+  Without an economy mod it loads and never advances.
+- **Market quests** — *Open for Business*, *Iron Trader* and *Seasoned Trader* on a new row of the
+  Industrial Age chapter, using economy objectives and NeroEconomy's milestone gates. Hidden behind
+  the `neroeconomy:first_sale` gate, so they never appear without NeroEconomy.
+- **Hand-in objectives:** `collect_item` takes `"consume": true` to take the items when the quest
+  completes (all hand-ins of a quest are checked first, then taken together).
+- **`once_per_world`** on `neroquests:currency`: pay only the first player in the world who completes
+  the quest.
+- **Quest sources.** Every quest and chapter now has a source resolved from its namespace: `spine`
+  (`neroquests:`), `pack` (any other datapack namespace — a mod's own quest pack or a server datapack)
+  or `custom` (reserved for quests made in game). Spine and pack definitions are read-only at runtime.
+  A datapack file in the reserved `custom` namespace is dropped with a reason in `reload-check`.
+- **Quest-pack rules.** A pack quest is dropped with a named reason (never a crash) when it carries a
+  `gate` or `reputation` reward, uses `"scope": "server"` without a chapter of its own namespace that
+  sets `"allow_server_scope": true`, depends (prerequisite or `quest_complete`) on a quest outside its
+  own namespace and the spine, or uses literal text instead of translation keys for its title or
+  description. A pack chapter's title must be a key too, and a pack chapter may list only its own
+  namespace's quests.
+- **Packs follow their mod.** A pack whose mod is not installed loads nothing. A chapter can set
+  `"show_when_absent": true` to stay visible anyway: its quests show a "needs a mod that is not
+  installed" badge in the book and can never be completed. A server datapack's own namespace always
+  loads. Pack quests never use `missingModObjectivePolicy=autocomplete`.
+- **`neroquests:manual` objective** — `{ "type": "neroquests:manual", "label": "<lang key>" }` for
+  "build a thing" quests. It never advances on its own; a quest author ticks it for an online player
+  with `/neroquests manual complete <quest> <player>` (a player who may author quests — see the editor
+  permissions below — or the console). Each use is counted in the log, never named.
+- **`neroquests:visit_structure` objective** — stand inside a generated structure, by `structure` id
+  or structure `tag` (exactly one). Checked on the once-a-second sweep against the structure pieces of
+  the chunk the player stands in; once visited it stays done. No position is stored.
+- **Completion signals for other mods.** Every quest completion publishes an anonymous crossing on
+  Neroland Core's event bus: `neroquests:quest_completed` (scope = quest id, value = how many times
+  that quest has been completed in this world), and `neroquests:chapter_completed` (scope = chapter
+  id) when it finishes a chapter for that player. They never say who. The world counts are stored with
+  no player identifier.
+- **`neroquests:mod_hook` reward** — `{ "type": "neroquests:mod_hook", "gate": "<ns>:hook/<id>" }`
+  opens a player-scope record gate that the pack's own mod ships, for the completing player (also when
+  offline), so that mod can apply its own effect by listening on Core's gate events. The gate must be
+  in the quest's own namespace under `hook/`; undefined gates grant nothing and are logged once. Hook
+  gates gate nothing and are written even with `gateWritesEnabled=false`.
+- **`/neroquests reload-check` reports per source** — `spine N / pack <namespace> N … / custom N` —
+  lists packs skipped because their mod is not installed, and keeps naming every dropped definition
+  with the rule it broke.
+- **Wiki:** [Quest format](wiki/Quest-Format.md) is now the complete contract for quest packs, and the
+  new [Shipping a quest pack](wiki/Shipping-a-Quest-Pack.md) page walks a mod author through shipping
+  quests with data files only, including a copyable validator test.
+- **Custom quests (server side of the in-game editor).** A new world store (`neroquests:custom_quests`,
+  with recovery backup) holds chapters and quests made in game under random `custom:` ids. They load
+  through the same definitions pipeline as datapacks and follow extra rules: player scope only, 1–12
+  objectives of the standard types, at most 9 rewards of `item` (one stack each), `loot_table`, `xp` and
+  `currency`, never gate, reputation or mod_hook; spine and pack quests may never depend on a custom
+  quest. Every edit re-checks the author's permission on the server, refuses spine/pack ids, validates
+  every id against the running game, rejects prerequisite cycles, previews the whole pipeline before
+  applying, then re-syncs everyone like a `/reload` (unfinished progress on changed objectives resets).
+  New settings: `customQuestMaxTotal` (500), `customChapterMax` (20), `customRewardMaxStacks` (9),
+  `customRewardMaxXp` (500), `customRewardMaxCurrency` (1000).
+- **Editor permissions.** Who may author (and tick `manual` objectives): Creative mode
+  (`editorRequiresCreative`, default `true`), permission level `editorMinOpLevel` (default 2) or the
+  editor allow-list; never spectators or dead players; while locked, only level 4. Per-author rate
+  limits on edits (20/s, 200/min) and on manual completions (10/min). The definitions sync tells each
+  player whether they may author (`can_author`), re-sent when their game mode, level, the lock or the
+  allow-list changes.
+- **Author text is inert.** Titles (64), descriptions (512) and manual labels (64) are stripped of
+  formatting codes, control/format characters and braces, stored as plain strings and shown only with
+  literal text components — never as translation keys, never in logs or crash reports.
+- **`neroquests:loot_table` reward** — `{ "type": "neroquests:loot_table", "table": "<id>" }` rolls a
+  loot table per completion for the player; unfit or offline items are kept like item rewards.
+- **Repeatable custom quests** — off by default; with a cooldown of 60 s to 30 days a completed quest
+  re-arms per player and pays again at most once per cooldown (a per-player last-paid time in the quest
+  data, exported and erased; `revoke --repay` clears it).
+- **Escrow mode** (`customRewardsEscrowed`, default `false`) — item rewards of custom quests are
+  deposited from the author's inventory (1–64 copies), paid from the deposit, and refunded to the author
+  (kept for them if offline) when changed or deleted; loot-table rewards are refused while it is on.
+- **Commands:** `/neroquests editor allow|deny|check|list` (level 3, shows counts, never names),
+  `/neroquests editor lock|unlock` (level 4), `/neroquests custom export [<chapter>]` (level 3; writes
+  `datapacks/neroquests_custom_export/` with translation keys and an `en_us.json`, no author ids),
+  `/neroquests custom import <folder> [--dry-run]` (level 4; validated, all-or-nothing, within the caps)
+  and `/neroquests custom delete <id> [confirm]` (level 3; confirm within 30 s; prunes every player's
+  progress and paid record for it). Player or console only, never command blocks. `reload-check` shows
+  the editor lock, allow-list size, escrow mode and custom counts.
+- **Data export** now includes the custom quests a player authored and their allow-list membership;
+  **erasure** clears `created_by` on those quests (they stay) and removes them from the allow-list.
+- **Wiki:** new [Editor permissions](wiki/Editor-Permissions.md) (admins) and
+  [Quest editor](wiki/Quest-Editor.md) (players) pages.
+
+### Changed
+
+- *Pressed and Powdered* and *Alloy Ambitions* are now hand-ins, so one item set no longer completes
+  them on every alternate account.
+- `/neroquests` subcommands carry the operator check individually so `contracts` can be open to
+  players; `list` and `reload-check` still require permission level 2 (`grant`, `revoke`, `reset`
+  and `export` now need level 3 — see below).
+- Owed rewards and daily-contract records are stored with the player's quest data, exported by
+  `/neroquests export` and erased with it (see `PRIVACY.md`).
+- The jar ships a `pack.mcmeta` for its bundled resources and data (`pack_format` 84, accepted up to
+  121), so every supported Minecraft version reads them as a valid pack.
+- The `telemetryEnabled` setting's comment now says crash reporting is on by default and that turning
+  it off takes effect on restart. The README and the Telemetry wiki page state the opt-out plainly,
+  and `PRIVACY.md` carries the telemetry notice the store pages show.
+- An `economy` objective's `earned` exclusion of NeroQuests' own payouts is one shared check, covered
+  by a test.
+- **The built-in story line is 28 quests** (was 30). *Breathing Room*, *Full Larder* and *Settled
+  Ground* left The Space Race: NeroColonies now ships them in its own quest pack, so they appear only
+  where that mod is installed. A new first Groundwork quest, *What This Book Is*, explains view and
+  edit mode, chapters arriving with other Neroland mods, and player-authored chapters (it is not a
+  prerequisite of anything, so existing progress is untouched).
+- **Companion-app link schema 2.** Quest and chapter rows carry `source` (`spine`/`pack`/`custom`),
+  `namespace`, `mod_present` and English `title_text`/`description_text` (custom quests send their
+  player-written text only there); chapters carry `order`. New sections `custom_authoring` (a boolean),
+  `owed` (the claim list) and `progress` (a full snapshot instead of an empty body); new events
+  `reward_owed` and `reward_claimed`; `claim_reward` accepts an owed entry `key` and answers a repeated
+  key as already settled. Two app alerts with fixed text: "A reward is waiting for you" and "A new
+  chapter appeared". Schema-1 fields stay for this release. See [Link module](wiki/Link-Module.md).
+
+### Migration
+
+- On the first load of a world's quest progress after updating (store format 2), progress, the paid
+  ledger, revoke markers, repeat timestamps, owed rewards, once-per-world slots and the world completion
+  counter recorded for `neroquests:space_race/breathing_room`, `full_larder` and `settled_ground` move to
+  `nerocolonies:colony_chronicle/breathing_room`, `full_larder` and `settled_ground`. Completed quests stay
+  completed and paid; running it again changes nothing. Without NeroColonies installed the moved rows
+  are kept like any other row for a quest that is not loaded.
+
+### Fixed (audit)
+
+- **A quest pays its rewards at most once.** A per-player paid ledger (and a world-level one for
+  `scope: server` quests) is kept with the quest data, exported and erased with it. Revoking or
+  resetting a quest no longer lets it pay again; `/neroquests revoke <player> <quest> --repay` (also
+  `reset <player> <quest> --repay`) is the explicit way to allow one more payout. A revoked quest
+  stays revoked until the player's progress on it actually changes, instead of being re-completed by
+  the next sweep. Revoke warns how many completed dependents stay complete. Existing completions are
+  entered into the ledger on first load.
+- **Erasing an online player** no longer re-completes (and re-pays) their quests a second later: they
+  are left alone until they rejoin.
+- **Retention** no longer purges players who play daily but have nothing left to progress (joining
+  counts as activity), and the sweep now runs once per in-game day as well as at start-up.
+- **Missing content can no longer complete a quest for free.** A quest with no objective present in
+  the installation is not completable under either `missingModObjectivePolicy`; a completion that
+  relied on `autocomplete` pays no rewards unless the new server setting `degradedCompletionsPay`
+  (default `false`) is on. An id that does not resolve although its mod is loaded (a typo) now drops
+  the quest with a reason in `/neroquests reload-check`. A `gate_open` objective naming a gate nothing
+  defines is treated as missing content instead of blocking forever. `custom_event` presence is decided
+  by the quest's namespace and by channels actually seen this session.
+- **Any decode error drops the whole quest, chapter or contract file** instead of loading a partial
+  definition; an unknown `scope` is a decode error rather than an exception.
+- **Changed objectives reset stale progress.** Each progress row remembers which objective list it was
+  counted against; when a reload changes it, unfinished rows start over (finished ones stay finished
+  without paying again) and rows of removed quests expire with `questDataRetentionDays`.
+- Owed rewards: one invalid (permanently refused) entry no longer blocks the rest of the queue — it is
+  kept but not retried, and the player is told once; every owed entry keeps one stable request key;
+  refused retries no longer count as activity; the player is told when the 64-entry cap drops an old
+  entry. `once_per_world` claims are per reward rather than per quest.
+- **Item and experience rewards are no longer lost.** A recipient who is offline, dead or leaving, or
+  whose inventory is full, has the reward kept for them (with the same 64-entry cap as owed credits)
+  and handed over on join, on respawn or once there is room, oldest first and possibly in part. The
+  server setting `owedItemsDropWhenFull` (default `false`) restores dropping the overflow at the
+  player's feet. Kept rewards are included in `/neroquests export` and erased with the player. A
+  player-scope gate reward for an offline player is opened directly (when its requirements hold).
+- **Server-scope quests reward everyone who could take part**, not the first player in the list: the
+  triggering player and every online player who has the quest available are each paid once (their own
+  ledger entry), with currency paid per player and anything undeliverable kept. A server gate is still
+  set once for the world.
+- **NeroLink `claim_reward` hands over kept rewards** (optionally for one quest): owed credits even
+  while the player is offline, items and experience while they are in the world. The response lists
+  what was delivered and what remains, and keeps its earlier fields.
+- **Quest re-evaluation no longer recurses or runs off-thread.** A gate opened by a reward inside an
+  engine pass re-evaluates after that pass instead of recursively; gate, threshold and economy events
+  from other threads are moved onto the server thread first.
+- **Reward amounts are capped in the data format**: experience and currency at 1,000,000 per reward,
+  item rewards at 2,304 (a full inventory). A quest beyond a cap is dropped with a reason in
+  `/neroquests reload-check`.
+- **Gate rewards respect the gate's own scope and requirements.** A server-scope quest only sets a
+  server gate when the gate is declared server-scope and its requirements hold; player and team gates
+  are opened per player. An undefined gate id is logged once. `gate` and `reputation` rewards are only
+  accepted in quests of the `neroquests` namespace (others are dropped at load). United Frontier no
+  longer rewards the `deep_space` gate it already requires, and stays hidden until First Colony.
+- **A corrupt quest-progress file is kept and recovered from backup.** NeroQuests now uses Neroland
+  Core's saved-data recovery (last-known-good backup) and first copies a damaged file aside as
+  `quest_progress.corrupt-<time>`. Erasure, `reset <player>` and retention purges also clear the
+  player from the backup at once.
+- `/neroquests grant`, `revoke`, `reset` and `export` need permission level 3 and a player or the
+  server console; command blocks and functions can no longer run them. A console export no longer
+  prints the player's UUID into the log.
+- `/neroquests reload-check` reports on the definitions actually in use (the last `/reload`) instead
+  of re-reading pack files on its own, and resets the missing-content warnings.
+- NeroQuests registers with Neroland Core's player-data erasure right after its config, before
+  anything else that could fail during start-up.
+- **The quest book, the server and NeroLink agree on quest state.** One shared rule decides completed,
+  locked, in progress and available everywhere; each prerequisite is checked in its own scope (a
+  player quest can wait on a world milestone), and a started quest whose prerequisite is not complete
+  shows as locked. A `quest_complete` objective resolves the quest it names by that quest's own scope
+  in the same way.
+- **Hidden quests stay hidden.** A quest behind a closed `visible_gate` is no longer sent to that
+  player's client at all (nor named in a chapter, a NeroLink prerequisite list or another quest's
+  objective, which reads "an undiscovered quest"); opening or closing a gate re-syncs the book.
+- Quest progress is sent to clients at most once per player per tick; a burst of shared (server-scope)
+  progress no longer sends every player one update per evaluation.
+- **Large quest packs sync reliably.** Quest definitions are sent in pages of at most 512 KiB and the
+  book updates only once the whole set has arrived; a single definition too large to send is skipped
+  with a warning instead of breaking the sync. Malformed sync packets are rejected instead of being
+  half-read.
+- **Crash reporting is self-contained and sends less.** NeroQuests uses its own Sentry client
+  instead of the global one (so it no longer clashes with Neroland Core's or another mod's reporting
+  and installs no global crash handler), and never sends exception or log message text — only error
+  types and stack frames. PRIVACY.md and the Telemetry wiki page list exactly what is sent.
+- Stopping a world drops everything NeroQuests held about it at once, instead of keeping the stopped
+  server in memory until the next world started.
+- Removed dead code (an unused Gradle file for `common`, unused trigger hooks and accessors) and a
+  build comment that described a JEI plugin that does not exist.
+- `/neroquests list`, `list <player>`, `reload-check` and `contracts`, and the quest book's fallback
+  labels for ids without a display name, are now fully translatable (no hard-coded English words or
+  colour codes).
+- The NeroEconomy bridge detects the installed NeroEconomy API without reflection.
+- **The Space Race no longer shows quests a pack cannot finish.** Each of its quests, and *Alloy
+  Ambitions*, stays hidden until the milestone that makes it finishable is open (Industrial Power,
+  Reached Orbit, First Colony, or a colony mod's Colony Established), so with only Neroland Core the
+  chapter ends after *Launch Materials* instead of showing a permanently stuck quest. The Story
+  chapters wiki page no longer claims the whole line is playable without other mods, and documents
+  that `gateWritesEnabled=false` hides the Space Race unless another mod opens Industrial Power.
+- **Loader metadata is accurate.** Each jar now declares only the Minecraft version it was built for
+  (for example `>=26.2 <26.3` / `[26.2,26.3)`), the Fabric manifest requires Neroland Core below 2.0.0
+  and Java 25 (it said Java 21 and left Core uncapped), and all three manifests carry a real
+  description, the homepage and the issue tracker.
+- **Documentation brought up to date.** The README and the wiki home page describe the current beta
+  (30 built-in quests, eight objective types, five reward types, nine loader × version builds,
+  Neroland Core 1.15.0) instead of an early skeleton; the Core notes cover the optional NeroEconomy
+  dependency and Core's saved-data recovery; the store pages list Minecraft 26.3 and describe the
+  stored data accurately (they promised a per-player tracking opt-out that does not exist); the
+  `quest_complete` objective page states the scope rule.
+
+### Build
+
+- Requires **Neroland Core 1.15.0** (was 1.13.0): its saved-data recovery and the offline gate API
+  are used. Every loader's manifest floors at that version and stays below 2.0.0.
+- NeroEconomy is a `compileOnly` dependency (`neroeconomy_version=0.3.1-beta.1`), resolved from
+  `mavenLocal()` or its GitHub Packages repository when credentials are present. Declared optional in
+  every loader's metadata (Fabric `suggests`, `breaks` below 0.3.0-beta.1).
+- The Eclipse compiler used by `ecjCheck` is pinned to `3.46.100` instead of the latest release.
+
 ## [0.3.0-beta.1] - 2026-09-24
 
 EMI compatibility. No gameplay, id, tag or config change.
@@ -84,7 +344,8 @@ Minecraft **26.3** support, plus the changes previously listed under *Unreleased
 
 ### Notes
 
-- No Core pin bump: `ThresholdEvents` shipped in Core **1.7.0** and NeroQuests already pins **1.9.0**.
+- `ThresholdEvents` shipped in Core **1.7.0**, so the objective itself needed no Core bump; the
+  release as a whole requires Core **1.13.0** for the 26.3 port (below).
 - Core exposes no `removeCrossingListener`. That is fine for a once-per-JVM subscription, but it does
   mean a listener cannot be withdrawn — worth an upstream look if Core ever grows unloadable modules.
 - Runtime verification of the new objective needs a second mod to fire a crossing; it is not covered

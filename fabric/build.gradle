@@ -4,6 +4,7 @@
 plugins {
     id 'net.fabricmc.fabric-loom'
     id 'eclipse'   // for eclipse.synchronizationTasks (VS Code / Buildship import hook)
+    id 'maven-publish'
 }
 
 // MC version comes from the Stonecutter node (e.g. :fabric:26.1.2), not a global property.
@@ -13,6 +14,13 @@ def jeiVersion = project.findProperty("jei_version_${mc}")
 def emiFile = project.findProperty("emi_file_fabric_${mc}")
 def nerolandcoreVersion = project.findProperty('nerolandcore_version')
 
+// Upper bound for this cell's Minecraft range: the next minor release (26.1.2 -> 26.2, 26.2 -> 26.3).
+// A cell is compiled against exactly one Minecraft version, so its manifest must not claim later ones.
+def nextMinecraft = { String version ->
+    def parts = version.tokenize('.')
+    "${parts[0]}.${(parts[1] as int) + 1}"
+}
+
 // This node's projectDir is <loader>/versions/<v>; the authoritative loader source +
 // resources live in the BRANCH root (fabric/). Resolve branch-root paths via the parent.
 def branchDir = project.parent.projectDir
@@ -21,9 +29,60 @@ def branchDir = project.parent.projectDir
 // default jar would be "<mc>-<version>.jar" and COLLIDE with the neoforge cell of the same version).
 base { archivesName = "neroquests-fabric-${mc}" }
 
+// Publish this cell's jar as a Maven artifact so other Nero mods can declare NeroQuests a dependency:
+// `za.co.neroland.neroquests:neroquests-fabric-<mc>:<version>`. Mirrors Neroland Core's publishing setup.
+// `./gradlew publishToMavenLocal` installs all nine cells locally for dev. Dependency-free POM on purpose.
+publishing {
+    publications {
+        register('mod', MavenPublication) {
+            groupId = rootProject.mod_group_id
+            artifactId = "neroquests-fabric-${mc}"
+            version = rootProject.mod_version
+            artifact tasks.named('jar')
+        }
+    }
+    // Remote target so a fresh CI runner / clone (empty ~/.m2) can resolve NeroQuests — GitHub Packages
+    // Maven for the NeroQuests repo. `publishToMavenLocal` still works for local dev; `publish` (or
+    // publishModPublicationToGitHubPackagesRepository) pushes here. Auth: gradle props gpr.user/gpr.key,
+    // else env GITHUB_ACTOR/GITHUB_TOKEN (both present in GitHub Actions). Lazy getOrNull() means a
+    // build that doesn't touch this repo (e.g. a contributor with no token) won't fail at configuration.
+    // Privacy (POPIA/GDPR): publishes only build artifacts + version strings, no personal data.
+    repositories {
+        maven {
+            name = 'GitHubPackages'
+            url = 'https://maven.pkg.github.com/Neroland/neroquests'
+            credentials {
+                username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
+                password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
+            }
+        }
+    }
+}
+
 // Pull in the shared common source + resources.
 sourceSets.main.java.srcDir rootProject.ext.commonJava
 sourceSets.main.resources.srcDir rootProject.ext.commonResources
+
+// Shared JUnit tests (common/src/test/java, AUD-27). Compiled on every Fabric cell so drift shows up, but
+// RUN only on the 26.2 cell (one cell is enough: the tests exercise codecs and bundled data, not MC glue).
+sourceSets.test.java.srcDir rootProject.ext.commonTest
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    enabled = (mc == '26.2')
+    // The bundled-content test reads the shared resources by file path (machine-independent: resolved here).
+    systemProperty 'neroquests.commonResources', rootProject.ext.commonResources
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+    }
+}
 
 dependencies {
     minecraft "com.mojang:minecraft:${mc}"
@@ -39,14 +98,18 @@ dependencies {
     // available. Core ships as its own mod and loads BEFORE NeroQuests (see fabric.mod.json depends).
     implementation "za.co.neroland.nerolandcore:nerolandcore-fabric-${mc}:${nerolandcoreVersion}"
 
+    // NeroEconomy — OPTIONAL. Compile-time API only (budgeted quest payouts, economy objective events); never
+    // bundled, never required. Only common's compat/neroeconomy bridge references it, after isModLoaded.
+    compileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${mc}:${rootProject.neroeconomy_version}"
+
     // Sentry SDK (telemetry/NeroQuestsTelemetry): compile against it + embed it as a jar-in-jar so the
     // shipped Fabric jar carries it. Counterpart to the NeoForge JarJar bundling.
     implementation 'io.sentry:sentry:8.45.0'
     include 'io.sentry:sentry:8.45.0'
 
-    // JEI (optional recipe-viewer compat). The shared compat/jei plugin lives in `common` and uses ONLY
-    // the loader-agnostic JEI common API; on Fabric it compiles against the common + fabric APIs and loads
-    // against the Fabric JEI mod at dev runtime. JEI is a soft dependency (compile-time API only; the mod
+    // JEI (optional recipe-viewer compat). No NeroQuests JEI plugin ships yet (there is no compat/jei
+    // package); these lines only put JEI on the dev classpath — common + fabric APIs to compile against,
+    // the Fabric JEI mod at dev runtime — for when one is added. JEI is a soft dependency (compile-time API only; the mod
     // is runtime-only). Same per-MC version as NeoForge (jei_version_<mc>, BlameJared maven from the root).
     if (jeiVersion) {
         compileOnly "mezz.jei:jei-${mc}-common-api:${jeiVersion}"
@@ -78,7 +141,8 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_authors          : rootProject.mod_authors,
         mod_license          : rootProject.mod_license,
         fabric_loader_version: rootProject.fabric_loader_version,
-        minecraft_version    : mc,
+        // Pinned to this cell: >=26.2 <26.3 on the 26.2 cell, and so on.
+        minecraft_version_range: ">=${mc} <${nextMinecraft(mc)}",
         // Floor the required Core version at what we compile against so the loader refuses to
         // run NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version : nerolandcoreVersion,
@@ -131,7 +195,8 @@ configurations {
     ecj
 }
 dependencies {
-    ecj 'org.eclipse.jdt:ecj:+'
+    // Pinned (was '+'): an analyzer upgrade must be a reviewed change, not a surprise on the next build.
+    ecj 'org.eclipse.jdt:ecj:3.46.100'
 }
 tasks.register('ecjCheck', JavaExec) {
     group = 'verification'

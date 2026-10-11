@@ -12,5 +12,6 @@
     { "type": "neroquests:item", "item": "minecraft:iron_block", "count": 2 },
     { "type": "neroquests:currency", "amount": 120 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:industrial_power"
 }

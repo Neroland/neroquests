@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.market.iron_trader.title",
+  "description": "quest.neroquests.market.iron_trader.desc",
+  "icon": "minecraft:iron_ingot",
+  "prerequisites": ["neroquests:market/open_for_business"],
+  "objectives": [
+    { "type": "neroquests:economy", "event": "sold", "tag": "c:ingots/iron", "count": 64 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 100 },
+    { "type": "neroquests:currency", "amount": 100 }
+  ],
+  "scope": "player",
+  "visible_gate": "neroeconomy:first_sale"
+}

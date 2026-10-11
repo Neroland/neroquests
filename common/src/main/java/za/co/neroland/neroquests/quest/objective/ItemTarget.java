@@ -66,6 +66,24 @@ public record ItemTarget(Optional<Identifier> item, Optional<Identifier> tag) {
                         .iterator().hasNext();
     }
 
+    /**
+     * Why this target is a typo (AUD-02), or empty: an unregistered item id whose namespace's mod is
+     * loaded, or an empty tag in an always-present namespace. Other empty tags stay "missing content",
+     * since a third, absent mod may be what fills them.
+     */
+    public Optional<String> typo() {
+        if (item.isPresent()) {
+            Identifier id = item.get();
+            return !BuiltInRegistries.ITEM.containsKey(id) && ContentIds.ownedByLoadedMod(id.getNamespace())
+                    ? Optional.of("unknown item " + id + " (its namespace's mod is loaded)")
+                    : Optional.empty();
+        }
+        if (tag.isPresent() && ContentIds.closedNamespace(tag.get().getNamespace()) && !present()) {
+            return Optional.of("unknown or empty item tag #" + tag.get());
+        }
+        return Optional.empty();
+    }
+
     /** A log-safe label (a resource id, never player data). */
     public String label() {
         return item.map(Identifier::toString)

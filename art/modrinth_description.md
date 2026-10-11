@@ -37,7 +37,7 @@ Built on **Neroland Core**: NeroQuests is the **primary writer** to Core's **pro
 
 ## Privacy (POPIA / GDPR)
 
-NeroQuests stores per-player quest progress — and keeps it minimal. It holds **only quest IDs, objective counters and completion timestamps**, keyed by the player's existing game **UUID** (never names, IPs, chat or any personal information beyond what Minecraft already keeps). Progress prunes on a **configurable retention** window for inactive players and clears on player-data deletion, all routed through Core's shared data-erasure hook — so a single erase request clears your NeroQuests data alongside every other Neroland mod. A per-player **opt-out** covers any non-essential tracking (aggregate counters, leaderboards) without breaking gameplay. Quest progress never leaves the server.
+NeroQuests stores per-player quest progress — and keeps it minimal. It holds **only quest IDs, objective counters, completion timestamps, which quests have already paid out, and rewards still waiting to be handed over**, keyed by the player's existing game **UUID** (never names, IPs, chat or any personal information beyond what Minecraft already keeps). Progress prunes on a **configurable retention** window for inactive players, can be exported on request, and clears on player-data deletion, all routed through Core's shared data-erasure hook — so a single erase request clears your NeroQuests data alongside every other Neroland mod. Quest progress never leaves the server, except to your own paired companion app when the server runs NeroLink.
 
 > **Telemetry notice:** NeroQuests sends anonymous error reports (stack trace + mod/game versions only — never IPs, usernames, UUIDs, quest progress or world data) to the developers via Sentry (EU servers) so crashes can be fixed. On by default — opt out any time by setting `telemetryEnabled = false` in `config/neroquests.properties`. Full details: [PRIVACY.md](https://github.com/Neroland/neroquests/blob/main/PRIVACY.md).
 
@@ -46,7 +46,7 @@ NeroQuests stores per-player quest progress — and keeps it minimal. It holds *
 - 🧩 **Built on Neroland Core** — one progression arc, one currency/reputation API, one config framework, shared `c:` tags. NeroQuests ships in its own creative tab.
 - 🔌 **Interoperates, never hard-depends** — **NeroFactions**, **NeroEconomy**, **NeroEvents**, **NeroRuins**, **NeroCreatures** and **Nerospace** are all optional soft synergies, discovered through Core APIs and tags. External mods (Create, AE2, Mekanism, Ad Astra, Energized Power) are referenced only via Core's common compat tags, so quests still load when a mod is absent and its tag is simply empty.
 - 🧵 **The connective tissue** — as the primary writer of Core's gate flags, NeroQuests authors the intended unlock sequence for the whole family; individual mods depend on Core's gate, not on NeroQuests, but their play order lives here as content.
-- 🧱 **Cross-loader** — NeoForge, Forge and Fabric on Minecraft **26.1.2** and **26.2**.
+- 🧱 **Cross-loader** — NeoForge, Forge and Fabric on Minecraft **26.1.2**, **26.2** and **26.3**.
 
 ## Requirements & compatibility
 

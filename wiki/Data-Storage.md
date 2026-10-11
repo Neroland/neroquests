@@ -13,7 +13,15 @@ client is told what to draw.
 | --- | --- | --- |
 | Player progress | the player's Minecraft game UUID | quest ID, one counter per objective, completion timestamp |
 | Player activity stamp | the player's Minecraft game UUID | one "last updated" epoch-millisecond timestamp, used only for retention |
+| Owed rewards | the player's Minecraft game UUID | currency rewards the economy refused for now: source quest/contract id, currency, amount, reason code, request key, first-attempt time, retry count |
+| Daily contracts | the player's Minecraft game UUID | the UTC day of the record and the contract ids handed in that day (older days are overwritten) |
 | Shared progress | nothing (world-wide) | for `scope: server` quests: quest ID, objective counters, completion timestamp |
+| Once-per-world claims | nothing (world-wide) | which quests' `once_per_world` credit reward has been claimed — no player is recorded |
+| Request-key sequence | nothing (world-wide) | one counter used to build payout request keys (`nq:<sequence>:<source id>`), which never hold a player id or name |
+| Completion counts | nothing (world-wide) | how many times each quest and each chapter has been completed on this server (at most 4096 ids each) — the value of the anonymous `neroquests:quest_completed` / `chapter_completed` signals |
+| Repeat timestamps | the player's Minecraft game UUID | for repeatable custom quests: quest id and when it last paid, so it pays at most once per cooldown |
+| Custom quests | the author's game UUID (`created_by`, per quest) | quests and chapters made in game, in a separate file (`neroquests:custom_quests`): titles, descriptions, objectives, rewards, layout, timestamps — see [Editor permissions](Editor-Permissions.md) |
+| Editor allow-list | game UUIDs | players an operator allowed to author; plus the editor lock flag |
 
 That is the complete list. NeroQuests stores **no** names, IP addresses, chat, coordinates or
 anything else about a player — nothing beyond the UUID Minecraft already uses.
@@ -35,9 +43,13 @@ world deletes it.
 
 ### If the file is damaged
 
-A corrupt or unreadable progress file does **not** crash the server. NeroQuests detects the bad
-read, starts from empty progress, and writes a clean file at the next world save. A warning is
-logged naming only the storage file and dimension — never a player or a stored value.
+A corrupt or unreadable progress file does **not** crash the server. NeroQuests uses Neroland Core's
+recovery: the damaged file is first **copied aside** as `quest_progress.corrupt-<time>` (so nothing is
+lost for good), then the store is restored from Core's last-known-good backup
+(`data/neroquests_quest_progress_backup.dat`), or starts empty if there is no usable backup, and a
+clean file is written at the next save. Warnings name only the storage file and dimension — never a
+player or a stored value. Delete the `.corrupt-*` copy once you have looked at it: it still holds
+player rows that erasure cannot reach.
 
 ## Retention
 
@@ -61,7 +73,9 @@ a player everywhere in the Neroland ecosystem at once:
 - admins: `/neroland data erase <uuid>`
 
 That drops every quest row and the activity stamp for that UUID. Erasure never logs who was
-erased. Shared server-scoped progress is untouched — it holds no player identifiers.
+erased. Shared server-scoped progress is untouched — it holds no player identifiers. Custom quests the
+player authored stay in the world, with `created_by` cleared, and the player leaves the editor
+allow-list; the custom store's backup is refreshed in the same request.
 
 ## Export (data access)
 
@@ -82,6 +96,9 @@ included, so an export can be handed to the player who asked for it as-is.
 Operators produce it in-game with `/neroquests export <player>` — an online player's name, or a
 UUID for someone who has left. The JSON is printed to whoever ran the command and to nobody else.
 See [Commands](Commands.md).
+
+The export also lists the custom quests the player authored and whether they are on the editor
+allow-list.
 
 The same tree also holds the per-player admin controls: `/neroquests reset <player>` wipes one
 player's stored progress, and `/neroquests revoke <player> <quest>` clears a single quest.

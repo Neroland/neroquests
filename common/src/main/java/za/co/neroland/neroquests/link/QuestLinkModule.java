@@ -20,12 +20,13 @@ import za.co.neroland.neroquests.platform.Services;
  * <p>Three surfaces, all registered from {@link NeroQuestsCommon#init()}:
  *
  * <ul>
- *   <li><b>Read</b> — {@link QuestLinkSnapshots}, serving the {@code quests} and {@code chapters}
- *       sections;</li>
+ *   <li><b>Read</b> — {@link QuestLinkSnapshots}, serving the {@code quests}, {@code chapters},
+ *       {@code custom_authoring}, {@code owed} and {@code progress} sections;</li>
  *   <li><b>Write</b> — {@link QuestLinkActions}, accepting the single {@code claim_reward}
  *       action;</li>
- *   <li><b>Live</b> — {@link QuestLinkEvents}, publishing {@code quest_completed} and
- *       {@code progress} events onto Core's shared event bus.</li>
+ *   <li><b>Live</b> — {@link QuestLinkEvents}, publishing {@code quest_completed}, {@code progress},
+ *       {@code reward_owed} and {@code reward_claimed} events onto Core's shared event bus, and
+ *       {@link QuestLinkAlerts} raising two fixed-text alerts.</li>
  * </ul>
  *
  * <p><b>Privacy (POPIA/GDPR).</b> Everything this module hands out is the requesting player's own
@@ -36,7 +37,10 @@ import za.co.neroland.neroquests.platform.Services;
  * through Core's {@code PlayerDataErasure} hook immediately reads as having no progress. See
  * {@code PRIVACY.md} and {@code wiki/Link-Module.md}.
  *
- * <p><b>Schema version 1.</b> Bump {@link #SCHEMA_VERSION} whenever the shape of a snapshot section
+ * <p><b>Schema version 2</b> (0.4.0): quest and chapter rows carry {@code source}, {@code namespace},
+ * {@code mod_present} and English {@code *_text}; new sections {@code custom_authoring}, {@code owed} and
+ * {@code progress}; new topics {@code reward_owed} and {@code reward_claimed}; two fixed-text alerts
+ * ({@link QuestLinkAlerts}). Schema-1 keys stay for one release. Bump {@link #SCHEMA_VERSION} whenever the shape of a snapshot section
  * changes, so a companion client can tell what it is parsing.
  */
 public final class QuestLinkModule {
@@ -45,13 +49,22 @@ public final class QuestLinkModule {
     public static final String MODULE_ID = NeroQuestsCommon.MOD_ID;
 
     /** The snapshot schema revision. Bump on any change to a section's shape. */
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
     /** Section: every quest visible to the requesting player, with their own progress. */
     public static final String SECTION_QUESTS = "quests";
 
     /** Section: the quest-book chapters, each listing the quest ids the player may see. */
     public static final String SECTION_CHAPTERS = "chapters";
+
+    /** Section (schema 2): whether the requester may author custom quests — a boolean only. */
+    public static final String SECTION_CUSTOM_AUTHORING = "custom_authoring";
+
+    /** Section (schema 2): the requester's owed rewards — the app's claim list. */
+    public static final String SECTION_OWED = "owed";
+
+    /** Section (schema 2): every visible quest's counters, in the {@code progress} event's shape. */
+    public static final String SECTION_PROGRESS = "progress";
 
     /** Action: the stable, schema-safe reward-claim id (see {@link QuestLinkActions}). */
     public static final String ACTION_CLAIM_REWARD = "claim_reward";
@@ -61,6 +74,12 @@ public final class QuestLinkModule {
 
     /** Topic: one or more objective counters moved. */
     public static final String TOPIC_PROGRESS = "progress";
+
+    /** Topic (schema 2): a reward was kept for the player (owed entry created). Own only. */
+    public static final String TOPIC_REWARD_OWED = "reward_owed";
+
+    /** Topic (schema 2): an owed reward was settled (paid or handed over, wholly or in part). Own only. */
+    public static final String TOPIC_REWARD_CLAIMED = "reward_claimed";
 
     private QuestLinkModule() {
     }
@@ -77,7 +96,8 @@ public final class QuestLinkModule {
     public static void init() {
         try {
             LinkModuleInfo info = new LinkModuleInfo(MODULE_ID, modVersion(), SCHEMA_VERSION,
-                    List.of(SECTION_QUESTS, SECTION_CHAPTERS),
+                    List.of(SECTION_QUESTS, SECTION_CHAPTERS, SECTION_CUSTOM_AUTHORING, SECTION_OWED,
+                            SECTION_PROGRESS),
                     List.of(ACTION_CLAIM_REWARD));
             // One provider and one handler cover the whole module; Core keys both on the module id.
             NeroLinkRegistry.registerSnapshotProvider(new QuestLinkSnapshots(), info);
@@ -88,6 +108,12 @@ public final class QuestLinkModule {
                     "[NeroQuests] Could not register the NeroLink module; companion clients will not "
                             + "see NeroQuests data. Quests themselves are unaffected.", e);
         }
+    }
+
+    /** Drop the link module's in-memory caches (English text, seen chapters). Called when the server stops. */
+    public static void serverStopped() {
+        EnglishText.clear();
+        QuestLinkAlerts.serverStopped();
     }
 
     /** This mod's public version string for discovery, or {@code "unknown"} if the seam is unhappy. */

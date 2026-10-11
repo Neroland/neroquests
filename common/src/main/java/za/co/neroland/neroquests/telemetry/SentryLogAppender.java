@@ -10,7 +10,8 @@ import org.apache.logging.log4j.core.config.Property;
  * through log4j — handled errors, event-bus listener exceptions, and the crash report itself — so
  * listening on the root logger catches NeroQuests failures without mixins. Filtering (NeroQuests-only),
  * de-dup, rate-limiting and PII scrubbing all happen in {@link NeroQuestsTelemetry}; this only selects
- * candidate log events.
+ * candidate log events. Log text never leaves the game: a throwable is sent as type + frames, a FATAL
+ * line without one as a fixed token.
  */
 final class SentryLogAppender extends AbstractAppender {
 
@@ -35,7 +36,8 @@ final class SentryLogAppender extends AbstractAppender {
         } else if (level == Level.FATAL) {
             String message = event.getMessage() == null ? null : event.getMessage().getFormattedMessage();
             if (message != null && message.contains("za.co.neroland.neroquests")) {
-                NeroQuestsTelemetry.captureMessage(message);
+                // AUD-10: the line's text is never sent — only that such a line occurred.
+                NeroQuestsTelemetry.captureWithheldLogLine();
             }
         }
     }

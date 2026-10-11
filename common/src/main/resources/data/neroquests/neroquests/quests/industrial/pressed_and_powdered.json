@@ -4,9 +4,9 @@
   "icon": "minecraft:redstone_block",
   "prerequisites": ["neroquests:industrial/forge_ahead"],
   "objectives": [
-    { "type": "neroquests:collect_item", "item": "minecraft:redstone_block", "count": 1 },
-    { "type": "neroquests:collect_item", "tag": "c:dusts/redstone", "count": 16 },
-    { "type": "neroquests:collect_item", "tag": "c:plates/iron", "count": 8 }
+    { "type": "neroquests:collect_item", "item": "minecraft:redstone_block", "count": 1, "consume": true },
+    { "type": "neroquests:collect_item", "tag": "c:dusts/redstone", "count": 16, "consume": true },
+    { "type": "neroquests:collect_item", "tag": "c:plates/iron", "count": 8, "consume": true }
   ],
   "rewards": [
     { "type": "neroquests:xp", "amount": 70 },

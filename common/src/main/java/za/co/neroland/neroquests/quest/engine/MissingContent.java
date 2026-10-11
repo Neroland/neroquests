@@ -26,8 +26,12 @@ import za.co.neroland.neroquests.quest.ObjectiveSpec;
  *       written up to its target, so the quest book shows it ticked.</li>
  * </ul>
  *
- * <p>Either way the quest stays completable. The offending objective is logged once per server
- * run, with resource ids only — never player data.
+ * <p>Either way the quest stays completable — <b>provided at least one of its objectives is
+ * present</b>. A quest with no present objective is never completable (AUD-02), and a completion
+ * that relied on {@code autocomplete} pays its rewards only when {@code degradedCompletionsPay} is
+ * on. An id that does not resolve although its owning mod is loaded is a typo, not missing content:
+ * {@code QuestDefinitions} drops that quest instead. The offending objective is logged once per
+ * server run, with resource ids only — never player data.
  */
 public final class MissingContent {
 
@@ -72,6 +76,19 @@ public final class MissingContent {
                         + "applying missingModObjectivePolicy={}.",
                 quest, objectiveIndex, objective.typeId(), objective.contentLabel(),
                 policy == Policy.AUTOCOMPLETE ? "autocomplete" : "skip");
+    }
+
+    /**
+     * Warn, at most once per server run, that a quest has no objective whose content exists here and
+     * therefore cannot be completed (AUD-02). Resource ids only.
+     */
+    public static void warnUncompletable(Identifier quest) {
+        if (!WARNED.add(quest + "#uncompletable")) {
+            return;
+        }
+        NeroQuestsCommon.LOGGER.warn(
+                "[NeroQuests] Quest {} has no objective whose content is present here, so it cannot be "
+                        + "completed under either missingModObjectivePolicy.", quest);
     }
 
     /** Forget every warning, so a fresh world/datapack load reports its own gaps. */

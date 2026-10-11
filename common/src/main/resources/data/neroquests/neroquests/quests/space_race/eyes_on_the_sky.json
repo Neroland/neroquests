@@ -11,5 +11,6 @@
     { "type": "neroquests:xp", "amount": 100 },
     { "type": "neroquests:currency", "amount": 100 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:industrial_power"
 }

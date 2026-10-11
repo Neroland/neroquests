@@ -8,6 +8,9 @@
     { "quest": "neroquests:industrial/machine_shop", "x": 4, "y": 0 },
     { "quest": "neroquests:industrial/alloy_ambitions", "x": 4, "y": 4 },
     { "quest": "neroquests:industrial/power_up", "x": 6, "y": 1 },
-    { "quest": "neroquests:industrial/age_of_industry", "x": 8, "y": 1 }
+    { "quest": "neroquests:industrial/age_of_industry", "x": 8, "y": 1 },
+    { "quest": "neroquests:market/open_for_business", "x": 0, "y": 6 },
+    { "quest": "neroquests:market/iron_trader", "x": 2, "y": 6 },
+    { "quest": "neroquests:market/seasoned_trader", "x": 4, "y": 6 }
   ]
 }

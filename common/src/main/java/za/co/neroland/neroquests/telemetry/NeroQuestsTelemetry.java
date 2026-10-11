@@ -5,16 +5,17 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 
-import io.sentry.Breadcrumb;
-import io.sentry.ITransaction;
-import io.sentry.Sentry;
+import io.sentry.Hint;
+import io.sentry.IScopes;
+import io.sentry.Scope;
+import io.sentry.Scopes;
+import io.sentry.SentryClient;
 import io.sentry.SentryEvent;
 import io.sentry.SentryLevel;
-import io.sentry.SpanStatus;
+import io.sentry.SentryOptions;
 import io.sentry.protocol.Message;
 import io.sentry.protocol.SentryException;
 import io.sentry.protocol.SentryStackFrame;
@@ -35,8 +36,15 @@ import za.co.neroland.neroquests.platform.Services;
  *   <li><b>NeroQuests errors only:</b> {@code beforeSend} drops any event whose stack trace does not
  *       touch {@code za.co.neroland.neroquests}.</li>
  *   <li><b>No personal data:</b> {@code sendDefaultPii=false} (no IP), no server/host name, no user
- *       identity, no player names/UUIDs, no world or quest-progress data, and OS-account names are
- *       scrubbed from file paths. Remaining payload: stack trace, mod/MC/loader/OS/Java versions.</li>
+ *       identity, no player names/UUIDs, no world or quest-progress data. Exception and log
+ *       <em>messages are never sent</em> (AUD-10): an exception is reduced to its type and stack
+ *       frames, a FATAL log line to a fixed token, and file paths are dropped from frames. No
+ *       breadcrumbs, no performance traces. Remaining payload: exception types + frames,
+ *       mod/MC/loader/OS/Java versions, config tags and the loaded-mod list.</li>
+ *   <li><b>Own client, not the global hub (AUD-10):</b> NeroQuests never calls {@code Sentry.init}.
+ *       It builds its own {@link SentryClient} bound to its own {@link Scopes}, so it neither replaces
+ *       nor is replaced by Neroland Core's (or any other mod's) global Sentry setup, and it installs no
+ *       JVM-wide uncaught-exception handler.</li>
  *   <li><b>Bounded volume:</b> per-session de-duplication plus a hard cap of
  *       {@value #MAX_EVENTS_PER_SESSION} events per game session.</li>
  * </ul>
@@ -66,11 +74,14 @@ public final class NeroQuestsTelemetry {
     /** Cap on how many mod ids are attached as crash context (payload bound). */
     private static final int MAX_MODS_REPORTED = 300;
 
-    /** Masks OS-account names in Windows/macOS/Linux home-directory paths. */
-    private static final Pattern USER_PATH =
-            Pattern.compile("(?i)(?:[A-Z]:)?[/\\\\](?:Users|home)[/\\\\][^/\\\\\\s:;,'\"]+");
+    /** Fixed text standing in for a FATAL log line, whose free text is never sent (AUD-10). */
+    private static final String WITHHELD_LOG_LINE = "FATAL log line naming " + PACKAGE_MARKER + " (text withheld)";
 
     private static volatile boolean active;
+
+    /** NeroQuests' own scopes (never the global hub); null until {@link #start()}. */
+    private static volatile IScopes scopes;
+
     private static final AtomicInteger eventsSent = new AtomicInteger();
     private static final Set<String> seenFingerprints = ConcurrentHashMap.newKeySet();
     private static SentryLogAppender appender;
@@ -116,65 +127,42 @@ public final class NeroQuestsTelemetry {
         }
         String modVersion = Services.PLATFORM.getModVersion();
         boolean dev = Services.PLATFORM.isDevelopmentEnvironment();
-        Sentry.init(options -> {
-            options.setDsn(DSN);
-            options.setRelease("neroquests@" + modVersion);
-            // Dev/IDE runs report under a dedicated environment so they never mix with real releases.
-            options.setEnvironment(dev ? "development" : environmentOf(modVersion));
-            // POPIA/GDPR: never store the sender's IP address or identity.
-            options.setSendDefaultPii(false);
-            // The machine's hostname is identifying; never attach it.
-            options.setAttachServerName(false);
-            options.setEnableUncaughtExceptionHandler(true);
-            // Release health: we manage the session lifecycle manually (started below, ended on JVM
-            // shutdown) so it works outside the Android/servlet integrations. The session id is random
-            // per launch and is NOT linked across sessions; no user/IP is attached.
-            options.setEnableAutoSessionTracking(false);
-            // Performance: sample a small fraction of traced operations (quest reload, progress save).
-            // Timing data only — no personal data in a transaction.
-            options.setTracesSampleRate(0.05D);
-            options.setBeforeSend((event, hint) -> filterAndScrub(event));
-        });
-        Sentry.configureScope(scope -> {
-            scope.setTag("loader", Services.PLATFORM.getPlatformName().toLowerCase(Locale.ROOT));
-            scope.setTag("dist", Services.PLATFORM.isClient() ? "client" : "dedicated_server");
-            scope.setTag("runtime", dev ? "development" : "production");
-            scope.setTag("mc_version", minecraftVersion());
-            // Config values — surfaces crashes that only reproduce at non-default settings. These are
-            // server/pack settings, never player data.
-            scope.setTag("cfg_gate_writes",
-                    Boolean.toString(NeroQuestsConfig.GATE_WRITES_ENABLED.get()));
-            scope.setTag("cfg_missing_mod_policy",
-                    String.valueOf(NeroQuestsConfig.MISSING_MOD_OBJECTIVE_POLICY.get()));
-            scope.setTag("cfg_retention_days",
-                    Integer.toString(NeroQuestsConfig.RETENTION_DAYS.get()));
-            // Loaded-mod list (public manifest ids + versions only) for mod-conflict triage.
-            try {
-                List<String> mods = Services.PLATFORM.getLoadedModIds();
-                if (mods != null && !mods.isEmpty()) {
-                    if (mods.size() > MAX_MODS_REPORTED) {
-                        mods = mods.subList(0, MAX_MODS_REPORTED);
-                    }
-                    scope.setTag("mod_count", Integer.toString(mods.size()));
-                    java.util.Map<String, Object> modContext = new java.util.HashMap<>();
-                    modContext.put("count", mods.size());
-                    modContext.put("ids", mods);
-                    scope.setContexts("loaded_mods", modContext);
-                }
-            } catch (RuntimeException | LinkageError e) {
-                // Mod list not available this early — skip it; the rest of the report is unaffected.
-            }
-        });
+        // AUD-10: a client and scopes of our own. Sentry.init would install a process-wide hub that
+        // Core (or any other mod) would overwrite — or that would overwrite theirs. Integrations (the
+        // uncaught-exception handler, the shutdown hook) are only registered by Sentry.init, so none
+        // are installed here; external configuration (sentry.properties, SENTRY_* env) is not read.
+        SentryOptions options = new SentryOptions();
+        options.setDsn(DSN);
+        options.setRelease("neroquests@" + modVersion);
+        // Dev/IDE runs report under a dedicated environment so they never mix with real releases.
+        options.setEnvironment(dev ? "development" : environmentOf(modVersion));
+        // POPIA/GDPR: never store the sender's IP address or identity.
+        options.setSendDefaultPii(false);
+        // The machine's hostname is identifying; never attach it.
+        options.setAttachServerName(false);
+        options.setEnableUncaughtExceptionHandler(false);
+        // Release health: the session lifecycle is managed manually (started below, ended on JVM
+        // shutdown). The session id is random per launch and NOT linked across sessions; no user/IP.
+        options.setEnableAutoSessionTracking(false);
+        // No breadcrumbs (nothing records them, and none may ride along) and no performance tracing.
+        options.setBeforeBreadcrumb((breadcrumb, hint) -> null);
+        options.setBeforeSend((event, hint) -> filterAndScrub(event));
+        SentryClient client = new SentryClient(options);
+        Scope global = new Scope(options);
+        global.bindClient(client);
+        IScopes own = new Scopes(new Scope(options), new Scope(options), global, "neroquests");
+        configure(global, dev);
         // Manual release-health session for this play session; closed on a clean JVM shutdown.
-        Sentry.startSession();
+        own.startSession();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                Sentry.endSession();
-                Sentry.flush(2000L);
+                own.endSession();
+                own.flush(2000L);
             } catch (RuntimeException ignored) {
                 // best-effort flush on shutdown
             }
         }, "neroquests-sentry-shutdown"));
+        scopes = own;
         if (appender == null) {
             appender = new SentryLogAppender();
             appender.start();
@@ -186,52 +174,36 @@ public final class NeroQuestsTelemetry {
                         + "telemetryEnabled=false in config/neroquests.properties).");
     }
 
-    /**
-     * Drops a lightweight, non-identifying breadcrumb onto the current scope — a trail of what the mod
-     * was doing (quests reloaded, objective advanced) that rides along with the next error report so a
-     * stack trace comes with the path that led to it. No-op when telemetry is off. The message is
-     * scrubbed of OS-account paths exactly like every other payload, and must never be given player
-     * names, UUIDs or quest-progress values.
-     */
-    public static void breadcrumb(String category, String message) {
-        if (!active) {
-            return;
-        }
-        Breadcrumb crumb = new Breadcrumb();
-        crumb.setType("default");
-        crumb.setCategory(category);
-        crumb.setLevel(SentryLevel.INFO);
-        crumb.setMessage(scrub(message));
-        Sentry.addBreadcrumb(crumb);
-    }
-
-    /**
-     * Times a unit of work as a sampled Sentry transaction (performance tracing). Returns the body's
-     * value. When telemetry is off the body simply runs untraced, so call sites stay branch-free. Only
-     * timing + operation name are recorded — never personal data.
-     */
-    public static <T> T trace(String operation, String name, java.util.function.Supplier<T> body) {
-        if (!active) {
-            return body.get();
-        }
-        ITransaction tx = Sentry.startTransaction(name, operation);
+    /** Tags and contexts on NeroQuests' own global scope (applies to every event of this client only). */
+    private static void configure(Scope scope, boolean dev) {
+        scope.setTag("loader", Services.PLATFORM.getPlatformName().toLowerCase(Locale.ROOT));
+        scope.setTag("dist", Services.PLATFORM.isClient() ? "client" : "dedicated_server");
+        scope.setTag("runtime", dev ? "development" : "production");
+        scope.setTag("mc_version", minecraftVersion());
+        // Config values — surfaces crashes that only reproduce at non-default settings. These are
+        // server/pack settings, never player data.
+        scope.setTag("cfg_gate_writes",
+                Boolean.toString(NeroQuestsConfig.GATE_WRITES_ENABLED.get()));
+        scope.setTag("cfg_missing_mod_policy",
+                String.valueOf(NeroQuestsConfig.MISSING_MOD_OBJECTIVE_POLICY.get()));
+        scope.setTag("cfg_retention_days",
+                Integer.toString(NeroQuestsConfig.RETENTION_DAYS.get()));
+        // Loaded-mod list (public manifest ids + versions only) for mod-conflict triage.
         try {
-            return body.get();
-        } catch (RuntimeException | Error e) {
-            tx.setThrowable(e);
-            tx.setStatus(SpanStatus.INTERNAL_ERROR);
-            throw e;
-        } finally {
-            tx.finish();
+            List<String> mods = Services.PLATFORM.getLoadedModIds();
+            if (mods != null && !mods.isEmpty()) {
+                if (mods.size() > MAX_MODS_REPORTED) {
+                    mods = mods.subList(0, MAX_MODS_REPORTED);
+                }
+                scope.setTag("mod_count", Integer.toString(mods.size()));
+                java.util.Map<String, Object> modContext = new java.util.HashMap<>();
+                modContext.put("count", mods.size());
+                modContext.put("ids", mods);
+                scope.setContexts("loaded_mods", modContext);
+            }
+        } catch (RuntimeException | LinkageError e) {
+            // Mod list not available this early — skip it; the rest of the report is unaffected.
         }
-    }
-
-    /** {@link #trace(String, String, java.util.function.Supplier)} for a body with no return value. */
-    public static void trace(String operation, String name, Runnable body) {
-        trace(operation, name, () -> {
-            body.run();
-            return null;
-        });
     }
 
     /**
@@ -288,10 +260,11 @@ public final class NeroQuestsTelemetry {
 
     /** Capture an exception already known to touch NeroQuests code. */
     static void capture(Throwable t) {
-        if (!active || t == null) {
+        IScopes own = scopes;
+        if (!active || own == null || t == null) {
             return;
         }
-        Sentry.captureException(t);
+        own.captureException(t, new Hint());
     }
 
     /** Capture a handled exception if it is still clearly from NeroQuests code. */
@@ -303,32 +276,33 @@ public final class NeroQuestsTelemetry {
 
     /** Capture a handled exception with a non-identifying source label for triage. */
     public static void captureHandledException(Throwable t, String source, String operation) {
-        if (!active || t == null || !touchesNeroQuests(t)) {
+        IScopes own = scopes;
+        if (!active || own == null || t == null || !touchesNeroQuests(t)) {
             return;
         }
-        Sentry.withScope(scope -> {
+        // Fixed, non-identifying labels chosen by the call site (e.g. "command" + "/neroquests list").
+        own.captureException(t, new Hint(), scope -> {
             scope.setTag("handled", "true");
             scope.setTag("source", source);
-            scope.setExtra("operation", operation);
-            Sentry.captureException(t);
+            scope.setTag("operation", operation);
         });
     }
 
-    /** Capture a (scrubbed, truncated) FATAL log line that names NeroQuests without a throwable. */
-    static void captureMessage(String message) {
-        if (!active) {
+    /**
+     * Report that a FATAL log line named NeroQuests without a throwable. Its text is never sent
+     * (AUD-10): the event carries a fixed token only, so it de-duplicates to one per session.
+     */
+    static void captureWithheldLogLine() {
+        IScopes own = scopes;
+        if (!active || own == null) {
             return;
-        }
-        String scrubbed = scrub(message);
-        if (scrubbed.length() > 4000) {
-            scrubbed = scrubbed.substring(0, 4000) + "…[truncated]";
         }
         SentryEvent event = new SentryEvent();
         event.setLevel(SentryLevel.FATAL);
         Message msg = new Message();
-        msg.setFormatted(scrubbed);
+        msg.setFormatted(WITHHELD_LOG_LINE);
         event.setMessage(msg);
-        Sentry.captureEvent(event);
+        own.captureEvent(event, new Hint());
     }
 
     /**
@@ -346,16 +320,17 @@ public final class NeroQuestsTelemetry {
         if (eventsSent.incrementAndGet() > MAX_EVENTS_PER_SESSION) {
             return null;
         }
-        // POPIA/GDPR scrubbing: no user identity, no hostname, no OS-account names in paths.
+        // POPIA/GDPR scrubbing: no user identity, no hostname, no breadcrumbs, no free text.
         event.setUser(null);
         event.setServerName(null);
+        event.setBreadcrumbs(null);
+        event.setExtras(null);
         List<SentryException> scrubExceptions = event.getExceptions();
         if (scrubExceptions != null) {
             for (SentryException ex : scrubExceptions) {
-                String value = ex.getValue();
-                if (value != null) {
-                    ex.setValue(scrub(value));
-                }
+                // AUD-10: an exception message can carry anything (a player name, a path, a quest
+                // title); only its type and frames are sent.
+                ex.setValue(null);
                 SentryStackTrace st = ex.getStacktrace();
                 List<SentryStackFrame> frames = st == null ? null : st.getFrames();
                 if (frames != null) {
@@ -365,10 +340,13 @@ public final class NeroQuestsTelemetry {
                 }
             }
         }
-        Message message = event.getMessage();
-        if (message != null && message.getFormatted() != null) {
-            message.setFormatted(scrub(message.getFormatted()));
+        if (event.getMessage() != null) {
+            // Only our own fixed token may travel as a message; anything else is replaced by it.
+            Message withheld = new Message();
+            withheld.setFormatted(WITHHELD_LOG_LINE);
+            event.setMessage(withheld);
         }
+        event.setLogger(null);
         return event;
     }
 
@@ -423,10 +401,5 @@ public final class NeroQuestsTelemetry {
             }
         }
         return sb.toString();
-    }
-
-    /** Replaces home-directory paths (which contain the OS account name) with a neutral marker. */
-    static String scrub(String text) {
-        return USER_PATH.matcher(text).replaceAll("/~");
     }
 }

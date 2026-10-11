@@ -11,5 +11,6 @@
     { "type": "neroquests:xp", "amount": 150 },
     { "type": "neroquests:currency", "amount": 150 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:reached_orbit"
 }

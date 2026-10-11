@@ -1,14 +1,16 @@
 modLoader = "javafml"
 loaderVersion = "${forge_loader_version_range}"
 license = "${mod_license}"
+issueTrackerURL = "https://github.com/Neroland/neroquests/issues"
 
 [[mods]]
 modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
+displayURL = "https://neroland.co.za"
 description = '''
-NeroQuests - multiloader build (Forge).
+Data-driven quests for the Neroland ecosystem: a quest book, a three-chapter story line, objectives and rewards written as datapack JSON, daily contracts, and optional NeroEconomy payouts. Requires Neroland Core.
 '''
 
 [[mixins]]
@@ -33,5 +35,14 @@ side = "BOTH"
 modId = "nerolandcore"
 mandatory = true
 versionRange = "${nerolandcore_version_range}"
+ordering = "AFTER"
+side = "BOTH"
+
+# NeroEconomy — OPTIONAL. Budgeted quest payouts and the economy objective light up only when it is
+# installed; NeroQuests loads and runs without it. API version 1 shipped in 0.3.0-beta.1.
+[[dependencies.${mod_id}]]
+modId = "neroeconomy"
+mandatory = false
+versionRange = "[0.3.0-beta.1,)"
 ordering = "AFTER"
 side = "BOTH"

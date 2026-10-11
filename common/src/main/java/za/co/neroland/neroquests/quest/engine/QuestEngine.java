@@ -15,6 +15,7 @@ import net.minecraft.server.level.ServerPlayer;
 
 import za.co.neroland.nerolandcore.progression.ProgressionGates;
 import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.config.NeroQuestsConfig;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.data.QuestProgressState;
 import za.co.neroland.neroquests.link.QuestLinkEvents;
@@ -23,6 +24,9 @@ import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.QuestScope;
+import za.co.neroland.neroquests.quest.QuestSource;
+import za.co.neroland.neroquests.quest.QuestStates;
+import za.co.neroland.neroquests.quest.objective.ManualObjective;
 
 /**
  * The server-side brain: given a player and (optionally) one thing that just happened, bring every
@@ -66,7 +70,45 @@ public final class QuestEngine {
      */
     private static final int MAX_CASCADE_PASSES = 8;
 
+    /**
+     * AUD-14: passes never nest. Work that arrives while a pass runs (a gate reward's GateEvents, a
+     * crossing or economy event published from inside a reward) is queued and drained after the
+     * outermost pass.
+     */
+    private static final PassGuard GUARD = new PassGuard(e -> NeroQuestsCommon.LOGGER.warn(
+            "[NeroQuests] A quest re-evaluation queued behind an engine pass failed.", e));
+
+    /**
+     * Which quests are repeatable, and with what cooldown (D2): custom quests can be. Installed by the custom
+     * module; answers {@code 0} (not repeatable) for everything else.
+     */
+    @FunctionalInterface
+    public interface RepeatPolicy {
+
+        /** The quest's repeat cooldown in milliseconds, or {@code 0} (or less) when it is not repeatable. */
+        long cooldownMillis(Identifier quest);
+    }
+
+    private static volatile RepeatPolicy repeatPolicy = quest -> 0L;
+
     private QuestEngine() {
+    }
+
+    /** Install the repeat policy (called once by the custom module's init). */
+    public static void setRepeatPolicy(RepeatPolicy policy) {
+        repeatPolicy = policy == null ? quest -> 0L : policy;
+    }
+
+    /**
+     * Run {@code task} now, or — when called from inside an engine pass — right after the outermost
+     * pass ends (AUD-14). A task submitted with a key equal to one still waiting runs once. Server
+     * thread only.
+     *
+     * @param key   dedupe key (e.g. a player UUID, or one shared marker for "everyone")
+     * @param task  the work, typically one or more {@code evaluate} calls
+     */
+    public static void afterPass(Object key, Runnable task) {
+        GUARD.submit(key, task);
     }
 
     /**
@@ -142,15 +184,29 @@ public final class QuestEngine {
      * @param credit what the event is worth per objective, or {@code null} for a plain re-measure
      */
     public static void evaluate(ServerPlayer player, Credit credit) {
+        GUARD.run(() -> evaluateNow(player, credit));
+    }
+
+    /** One pass, inside the {@link #GUARD}. */
+    private static void evaluateNow(ServerPlayer player, Credit credit) {
         MinecraftServer server = player.level().getServer();
         if (server == null) {
             return;
         }
         Map<Identifier, Quest> quests = QuestDefinitions.questsForServer(server);
-        if (quests.isEmpty()) {
+        if (quests.isEmpty() || QuestDefinitions.contentChecksPending()) {
+            // Freshly (re)loaded definitions are not evaluated until the typo pass has run on the
+            // next server tick (AUD-02): a typo'd quest must never get the chance to complete.
             return;
         }
+        // AUD-17: stored rows must match these definitions before anything is counted against them.
+        ProgressReconciler.ensure(server);
         QuestProgressState state = QuestProgressState.get(server);
+        if (state.isSuppressed(player.getUUID())) {
+            // Just erased (AUD-01): nothing is evaluated for them until they rejoin, so an erasure is
+            // not undone — and re-paid — by the next sweep.
+            return;
+        }
         Set<Identifier> openGates = openGatesFor(player);
         Mutations mutations = new Mutations();
         try {
@@ -158,8 +214,27 @@ public final class QuestEngine {
         } finally {
             // Even a pass that hit the cascade cap has already written real progress; the client
             // must see it.
-            publish(server, player, mutations);
+            publish(player, mutations);
         }
+    }
+
+    /**
+     * Tick every {@code manual} objective of {@code quest} for {@code player} (C5) — the only path that
+     * credits them, called by {@code /neroquests manual complete} after its authorisation check. The quest
+     * completes through the normal engine path if its other objectives are done too.
+     *
+     * @return whether the quest is complete for this holder afterwards
+     */
+    public static boolean manualComplete(ServerPlayer player, Quest quest) {
+        evaluate(player, ManualObjective.creditFor(quest.id()));
+        MinecraftServer server = player.level().getServer();
+        if (server == null) {
+            return false;
+        }
+        QuestProgressState state = QuestProgressState.get(server);
+        return quest.scope() == QuestScope.SERVER
+                ? state.isServerComplete(quest.id())
+                : state.isComplete(player.getUUID(), quest.id());
     }
 
     /**
@@ -173,9 +248,20 @@ public final class QuestEngine {
      * <p>Objective counters are deliberately <em>not</em> filled in: completion is what the rest of
      * the engine reads, and a completed quest is never re-settled.
      *
+     * <p>A grant overrides a revoked-until-changed marker, but not the paid ledger: granting a quest
+     * whose rewards were already paid completes it without paying again (AUD-01). An operator who
+     * means to pay again revokes with {@code --repay} first.
+     *
      * @return {@code true} if this newly completed the quest, {@code false} if it already was
      */
     public static boolean adminComplete(ServerPlayer player, Quest quest) {
+        boolean[] newly = new boolean[1];
+        GUARD.run(() -> newly[0] = adminCompleteNow(player, quest));
+        return newly[0];
+    }
+
+    /** {@link #adminComplete}, inside the {@link #GUARD}. */
+    private static boolean adminCompleteNow(ServerPlayer player, Quest quest) {
         MinecraftServer server = player.level().getServer();
         if (server == null) {
             return false;
@@ -190,13 +276,15 @@ public final class QuestEngine {
         if (!newlyComplete) {
             return false;
         }
+        state.clearRevocation(serverScope ? null : uuid, quest.id());
         try {
             record(mutations, serverScope);
-            QuestCompletionListeners.fire(new QuestCompletion(server, uuid, quest));
+            QuestCompletionListeners.fire(new QuestCompletion(server, uuid, quest,
+                    payDecision(state, uuid, quest.id(), serverScope, false)));
             cascade(player, server, QuestDefinitions.questsForServer(server), state,
                     openGatesFor(player), null, mutations);
         } finally {
-            publish(server, player, mutations);
+            publish(player, mutations);
         }
         return true;
     }
@@ -214,11 +302,14 @@ public final class QuestEngine {
             for (Quest quest : quests.values()) {
                 boolean serverScope = quest.scope() == QuestScope.SERVER;
                 Set<Identifier> completed = serverScope ? serverCompleted : playerCompleted;
-                if (completed.contains(quest.id()) || !quest.isAvailable(completed, openGates)) {
+                // AUD-18: the shared rule — every prerequisite resolved by its own scope.
+                if (completed.contains(quest.id()) || !QuestStates.isAvailable(quest, quests,
+                        playerCompleted, serverCompleted, openGates)) {
                     continue;
                 }
                 ObjectiveContext context =
-                        new ObjectiveContext(server, player, quest.scope(), completed);
+                        new ObjectiveContext(server, player, quest.scope(), completed, quest.id(),
+                                playerCompleted, serverCompleted, quests);
                 // No short-circuit: settle() must run for every candidate quest, not just up to
                 // the first one that completes.
                 completedSomething |= settle(state, quest, context, pending, mutations);
@@ -249,16 +340,29 @@ public final class QuestEngine {
         UUID player = context.player().getUUID();
         Identifier questId = quest.id();
         boolean allSatisfied = true;
+        // Per objective, the counter clamped to target (or -1 when content is missing), for the
+        // revoked-until-changed comparison.
+        int[] effective = new int[objectives.size()];
+        // AUD-02: how many objectives name content that exists here, and whether any was satisfied by
+        // the autocomplete policy instead of by the player.
+        int present = 0;
+        boolean degraded = false;
 
         for (int index = 0; index < objectives.size(); index++) {
             ObjectiveSpec objective = objectives.get(index);
             int target = Math.max(1, objective.target());
+            effective[index] = -1;
 
             // Cross-mod degradation: content this installation does not have never blocks a quest.
             if (!objective.contentPresent(context)) {
-                MissingContent.Policy policy = MissingContent.policy();
+                // B3: a pack is only loaded when its mod is, so its objectives never take the
+                // autocomplete escape hatch — an absent piece of a pack quest is simply skipped.
+                MissingContent.Policy policy = quest.source() == QuestSource.SPINE
+                        ? MissingContent.policy()
+                        : MissingContent.Policy.SKIP;
                 MissingContent.warnOnce(questId, index, objective, policy);
                 if (policy == MissingContent.Policy.AUTOCOMPLETE) {
+                    degraded = true;
                     int stored = counter(state, player, questId, index, serverScope);
                     if (stored < target) {
                         write(state, player, questId, index, target - stored, serverScope, mutations);
@@ -266,6 +370,7 @@ public final class QuestEngine {
                 }
                 continue; // satisfied under 'autocomplete', ignored under 'skip' — either way, no block
             }
+            present++;
 
             int current = counter(state, player, questId, index, serverScope);
 
@@ -287,12 +392,31 @@ public final class QuestEngine {
                 }
             }
 
+            effective[index] = Math.min(Math.max(current, 0), target);
             if (current < target) {
                 allSatisfied = false;
             }
         }
 
-        if (!allSatisfied) {
+        // AUD-01: a revoked quest stays revoked until the player's progress actually changes, so the
+        // sweep cannot simply re-measure it back to complete. Checked on every pass, not only once
+        // everything is satisfied: a credited objective (kills, crafts) climbing back up from zero
+        // differs from the snapshot on the way, which is exactly the change that lifts the hold.
+        boolean held = serverScope
+                ? state.serverRevocationHolds(questId, effective)
+                : state.revocationHolds(player, questId, effective);
+        if (!allSatisfied || held) {
+            return false;
+        }
+        if (present == 0) {
+            // AUD-02: nothing this quest asks for exists here, so nothing was done. Under either policy
+            // such a quest is not completable — otherwise it would complete (and pay) on the next sweep.
+            MissingContent.warnUncompletable(questId);
+            return false;
+        }
+        // Hand-in objectives (e.g. collect_item with "consume": true) take their items now, all or
+        // nothing: if any of them can no longer be met, the quest simply stays open this pass.
+        if (!takeHandIns(objectives, context)) {
             return false;
         }
         boolean newlyComplete = serverScope
@@ -300,9 +424,65 @@ public final class QuestEngine {
                 : state.markComplete(player, questId, System.currentTimeMillis());
         if (newlyComplete) {
             record(mutations, serverScope);
-            QuestCompletionListeners.fire(new QuestCompletion(context.server(), player, quest));
+            boolean withheld = degraded && !NeroQuestsConfig.DEGRADED_COMPLETIONS_PAY.get().booleanValue();
+            QuestCompletionListeners.fire(new QuestCompletion(context.server(), player, quest,
+                    payDecision(state, player, questId, serverScope, withheld)));
         }
         return newlyComplete;
+    }
+
+    /**
+     * Whether a completion pays (AUD-01/AUD-02). A degraded completion is withheld without touching
+     * the ledger, so a later genuine completion (after a revoke) can still pay; otherwise the quest
+     * enters the paid ledger now and pays only if it was not already there.
+     */
+    private static QuestCompletion.RewardDecision payDecision(QuestProgressState state, UUID player,
+                                                              Identifier quest, boolean serverScope,
+                                                              boolean withheldDegraded) {
+        if (withheldDegraded) {
+            return QuestCompletion.RewardDecision.WITHHELD_DEGRADED;
+        }
+        long cooldown = serverScope ? 0L : repeatPolicy.cooldownMillis(quest);
+        if (cooldown > 0L) {
+            // D2: a repeatable quest pays once per cooldown, decided by the last-paid timestamp — so neither a
+            // re-arm nor a revoke/reset inside the cooldown can pay it twice.
+            long now = System.currentTimeMillis();
+            long last = state.lastRepeatPaid(player, quest);
+            if (last > 0L && now - last < cooldown) {
+                return QuestCompletion.RewardDecision.ALREADY_PAID;
+            }
+            state.markRepeatPaid(player, quest, now);
+            state.markPaid(player, quest);
+            return QuestCompletion.RewardDecision.PAY;
+        }
+        boolean fresh = serverScope ? state.markServerPaid(quest) : state.markPaid(player, quest);
+        return fresh ? QuestCompletion.RewardDecision.PAY : QuestCompletion.RewardDecision.ALREADY_PAID;
+    }
+
+    /**
+     * Take every hand-in of a quest that is about to complete. Checks all of them first so a quest
+     * with two hand-ins never takes the first and then fails on the second.
+     *
+     * @return {@code false} when a hand-in can no longer be met, in which case nothing was taken
+     */
+    private static boolean takeHandIns(List<ObjectiveSpec> objectives, ObjectiveContext context) {
+        boolean any = false;
+        for (ObjectiveSpec objective : objectives) {
+            if (objective.takesOnComplete() && objective.contentPresent(context)) {
+                any = true;
+                if (!objective.canTakeOnComplete(context)) {
+                    return false;
+                }
+            }
+        }
+        if (any) {
+            for (ObjectiveSpec objective : objectives) {
+                if (objective.takesOnComplete() && objective.contentPresent(context)) {
+                    objective.takeOnComplete(context);
+                }
+            }
+        }
+        return true;
     }
 
     // --- progress-store helpers ---------------------------------------------
@@ -320,9 +500,10 @@ public final class QuestEngine {
     private static int write(QuestProgressState state, UUID player, Identifier quest, int index,
                              int delta, boolean serverScope, Mutations mutations) {
         record(mutations, serverScope);
+        int fingerprint = QuestDefinitions.fingerprint(quest);
         int updated = serverScope
-                ? state.incrementServerObjective(quest, index, delta)
-                : state.incrementObjective(player, quest, index, delta);
+                ? state.incrementServerObjective(quest, index, delta, fingerprint)
+                : state.incrementObjective(player, quest, index, delta, fingerprint);
         mutations.note(quest, index, updated, serverScope);
         return updated;
     }
@@ -339,19 +520,22 @@ public final class QuestEngine {
     // --- client sync ---------------------------------------------------------
 
     /**
-     * Push what this pass changed, once. A change to the shared {@code scope: server} section is
-     * visible to everyone, so it fans out to every online player (each getting their own snapshot);
-     * otherwise only the evaluated player hears about it. A pass that changed nothing sends nothing,
-     * which is what keeps the 1 Hz sweep silent on a settled world.
+     * Publish what this pass changed, once. A change to the shared {@code scope: server} section is
+     * visible to everyone, so every online player is marked for a snapshot (each getting their own);
+     * otherwise only the evaluated player is. The marks are sent at the end of the server tick
+     * ({@link QuestSync#flush}, AUD-20), so many passes in one tick still cost one payload per player.
+     * A pass that changed nothing marks nothing, which is what keeps the 1 Hz sweep silent on a
+     * settled world.
      *
      * <p>The NeroLink {@code progress} event rides along here for exactly the same reason: at most
      * one event per player per pass, and none at all when nothing moved.
      */
-    private static void publish(MinecraftServer server, ServerPlayer player, Mutations mutations) {
+    private static void publish(ServerPlayer player, Mutations mutations) {
+        // AUD-20: marked now, sent once at the end of the tick however many passes touched it.
         if (mutations.server) {
-            QuestSync.syncProgressAll(server);
+            QuestSync.markAllProgressDirty();
         } else if (mutations.player) {
-            QuestSync.syncProgressTo(player);
+            QuestSync.markProgressDirty(player.getUUID());
         }
         QuestLinkEvents.publishProgress(player.getUUID(), mutations.playerChanges,
                 mutations.serverChanges);

@@ -27,6 +27,9 @@ import za.co.neroland.neroquests.quest.RewardSpec;
  * The quest still completes and its other rewards still pay out.
  *
  * <p>Reputation is keyed by UUID, so this reward lands whether or not the recipient is online.
+ *
+ * <p><b>Namespace rule (AUD-23).</b> Only quests of the {@code neroquests} namespace may carry this
+ * reward; any other quest that does is dropped at load ({@code QuestDefinitions}).
  */
 public record ReputationReward(Identifier faction, int amount) implements RewardSpec {
 

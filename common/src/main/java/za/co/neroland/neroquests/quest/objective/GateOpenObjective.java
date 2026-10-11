@@ -7,6 +7,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
 
+import za.co.neroland.nerolandcore.progression.GateDefinitions;
 import za.co.neroland.nerolandcore.progression.ProgressionGates;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
@@ -25,8 +26,10 @@ import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
  * <p>Not to be confused with a quest's {@code visible_gate}, which hides the whole quest until the
  * gate opens; this is one tick-box inside an already-visible quest.
  *
- * <p>Gates carry no missing-content degradation: an id no mod defines simply never opens, because
- * Core resolves any unknown gate as a closed player-scope gate rather than an error.
+ * <p><b>Undefined gates (AUD-02).</b> Core resolves an unknown gate id as a closed player-scope gate,
+ * so a gate no installed mod or datapack defines would block its quest forever. Such a gate is
+ * therefore treated as missing content (warned once, then {@code missingModObjectivePolicy}) — unless
+ * something has opened it for this player anyway, in which case it is plainly real.
  */
 public record GateOpenObjective(Identifier gate) implements ObjectiveSpec {
 
@@ -45,6 +48,13 @@ public record GateOpenObjective(Identifier gate) implements ObjectiveSpec {
     @Override
     public OptionalInt measure(ObjectiveContext context) {
         return OptionalInt.of(ProgressionGates.isOpen(context.player(), gate) ? 1 : 0);
+    }
+
+    @Override
+    public boolean contentPresent(ObjectiveContext context) {
+        // Core exposes no public "is this gate defined" query; its definition table is the only source.
+        return GateDefinitions.forServer(context.server()).containsKey(gate)
+                || ProgressionGates.isOpen(context.player(), gate);
     }
 
     @Override

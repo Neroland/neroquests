@@ -1,0 +1,17 @@
+{
+  "title": "quest.neroquests.market.seasoned_trader.title",
+  "description": "quest.neroquests.market.seasoned_trader.desc",
+  "icon": "minecraft:gold_block",
+  "prerequisites": ["neroquests:market/iron_trader"],
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "neroeconomy:trader_100" },
+    { "type": "neroquests:economy", "event": "bought", "count": 32 },
+    { "type": "neroquests:economy", "event": "earned", "count": 500 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 200 },
+    { "type": "neroquests:currency", "amount": 150 }
+  ],
+  "scope": "player",
+  "visible_gate": "neroeconomy:first_sale"
+}

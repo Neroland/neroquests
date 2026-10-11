@@ -37,7 +37,23 @@ public final class ForgeQuestNetwork implements NetworkPlatform {
         for (QuestNetwork.Clientbound<?> cb : QuestNetwork.clientbound()) {
             registerClientbound(play, cb);
         }
+        for (QuestNetwork.Serverbound<?> sb : QuestNetwork.serverbound()) {
+            registerServerbound(play, sb);
+        }
         channel = play.build();
+    }
+
+    /**
+     * Both directions share the one bidirectional flow; the sender is what distinguishes them. The common
+     * handler hops onto the server thread itself (EditorRequests).
+     */
+    private static <T extends CustomPacketPayload> void registerServerbound(
+            PayloadFlow<RegistryFriendlyByteBuf, CustomPacketPayload> play, QuestNetwork.Serverbound<T> sb) {
+        play.addMain(sb.type(), registryCodec(sb.codec()), (payload, context) -> {
+            if (context.getSender() instanceof ServerPlayer serverPlayer) {
+                sb.handler().accept(payload, serverPlayer);
+            }
+        });
     }
 
     private static <T extends CustomPacketPayload> void registerClientbound(

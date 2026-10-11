@@ -4,11 +4,12 @@
   "icon": "minecraft:netherite_ingot",
   "prerequisites": ["neroquests:industrial/pressed_and_powdered"],
   "objectives": [
-    { "type": "neroquests:collect_item", "tag": "c:ingots/nero_alloy", "count": 4 }
+    { "type": "neroquests:collect_item", "tag": "c:ingots/nero_alloy", "count": 4, "consume": true }
   ],
   "rewards": [
     { "type": "neroquests:xp", "amount": 100 },
     { "type": "neroquests:currency", "amount": 100 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:reached_orbit"
 }

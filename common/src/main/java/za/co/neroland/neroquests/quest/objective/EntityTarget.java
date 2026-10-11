@@ -59,6 +59,20 @@ public record EntityTarget(Optional<Identifier> entity, Optional<Identifier> tag
                         .iterator().hasNext();
     }
 
+    /** Why this target is a typo (AUD-02), or empty — the same rules as {@link ItemTarget#typo()}. */
+    public Optional<String> typo() {
+        if (entity.isPresent()) {
+            Identifier id = entity.get();
+            return !BuiltInRegistries.ENTITY_TYPE.containsKey(id) && ContentIds.ownedByLoadedMod(id.getNamespace())
+                    ? Optional.of("unknown entity type " + id + " (its namespace's mod is loaded)")
+                    : Optional.empty();
+        }
+        if (tag.isPresent() && ContentIds.closedNamespace(tag.get().getNamespace()) && !present()) {
+            return Optional.of("unknown or empty entity tag #" + tag.get());
+        }
+        return Optional.empty();
+    }
+
     /** A log-safe label (a resource id, never player data). */
     public String label() {
         return entity.map(Identifier::toString)

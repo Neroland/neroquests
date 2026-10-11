@@ -5,6 +5,7 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.server.ServerStoppedEvent;
 
 import za.co.neroland.neroquests.command.QuestCommands;
 import za.co.neroland.neroquests.quest.engine.QuestTriggers;
@@ -30,6 +31,9 @@ public final class ForgeQuestEvents {
         TickEvent.ServerTickEvent.Post.BUS.addListener(event ->
                 QuestTriggers.serverTick(event.server()));
 
+        // Drop every static reference to the stopped server (AUD-31).
+        ServerStoppedEvent.BUS.addListener(event -> QuestTriggers.serverStopped());
+
         // Kill credit; the trigger resolves the responsible player from the damage source.
         // A statement-bodied lambda is required: LivingDeathEvent is cancellable, so its BUS
         // offers both Consumer and Predicate overloads and an expression lambda is ambiguous.
@@ -41,6 +45,13 @@ public final class ForgeQuestEvents {
         PlayerEvent.PlayerLoggedInEvent.BUS.addListener(event -> {
             if (event.getEntity() instanceof ServerPlayer serverPlayer) {
                 QuestTriggers.playerJoined(serverPlayer);
+            }
+        });
+
+        // Hand over items/experience kept while the player was dead (AUD-05).
+        PlayerEvent.PlayerRespawnEvent.BUS.addListener(event -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerRespawned(serverPlayer);
             }
         });
 

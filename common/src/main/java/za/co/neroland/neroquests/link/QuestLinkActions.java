@@ -5,55 +5,54 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
 
 import za.co.neroland.nerolandcore.link.LinkActionHandler;
 import za.co.neroland.nerolandcore.link.LinkActionResult;
 import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.data.OwedReward;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.data.QuestProgressState;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.QuestScope;
+import za.co.neroland.neroquests.quest.reward.CurrencyPayouts;
+import za.co.neroland.neroquests.quest.reward.OwedDelivery;
 
 /**
- * The write half of the link module — a deliberately tiny surface: one action,
- * {@code claim_reward}, and it pays out nothing.
+ * The write half of the link module — one action, {@code claim_reward}, which hands over what the
+ * owed queue keeps for the player (AUD-09).
  *
- * <h2>Why a no-op action exists</h2>
+ * <p>Rewards still fire automatically the moment a quest completes. What a player could not take then
+ * — credits the economy refused, items and experience while they were offline, dead or full — is kept
+ * in the owed queue ({@code OwedDelivery}, {@code CurrencyPayouts}). {@code claim_reward} settles it:
  *
- * <p>In this version rewards fire <em>automatically</em> the moment a quest completes
- * ({@code QuestRewards} subscribes to the completion channel), so there is nothing left to claim
- * and claiming again must never double-pay. The action is nevertheless part of the module's
- * advertised surface so companion clients have a <b>stable id to code against from day one</b>: a
- * "claim" button written today keeps working unchanged when the deferred-reward queue lands (see
- * the TODO in {@code QuestRewards}), at which point this handler starts actually handing over the
- * parked rewards.
+ * <pre>{@code params:  { "quest"?: "<quest id>", "key"?: "<owed entry key>" }
+ * result:  { "delivered": [ {"type":"currency","currency":..,"amount":..}
+ *                         | {"type":"item","item":..,"count":..} | {"type":"xp","amount":..} ],
+ *            "remaining": n, "owed": [ {type, source, item|currency, count|amount, permanent} ],
+ *            "claimed": true, "granted_now": bool, "note": "..",
+ *            "quest"?, "scope"?, "completed_at"? }}</pre>
  *
- * <p>Until then a valid call answers {@link LinkActionResult#ok(JsonObject)} with
- * {@code {"claimed": true, "note": "rewards are granted automatically on completion"}} — a truthful
- * "there is nothing outstanding", not a failure.
+ * <p>With a {@code quest}, only entries from that quest are settled; without, every deliverable entry.
+ * Offline (allowed, see {@link #allowOffline(String)}) only <b>currency</b> can be settled; items and
+ * experience stay and count as remaining. Every entry is settled by its own request key, so a repeated
+ * claim never hands anything over twice. The response carries no UUID or name.
  *
  * <h2>Validation</h2>
  *
  * <p>Server-authoritative, and the incoming {@link UUID} is trusted for <em>nothing beyond scoping
- * the request to that player's own data</em>:
- *
- * <ol>
- *   <li>{@code quest} must be present and a well-formed id, and must name a loaded quest that this
- *       player may <em>see</em> — a quest hidden behind an unopened {@code visible_gate} answers
- *       exactly like a quest that does not exist, so its existence cannot be probed
- *       ({@link LinkActionResult.Error#VALIDATION});</li>
- *   <li>the quest must be complete for this player (or, at {@code scope: server}, for the world)
- *       ({@link LinkActionResult.Error#VALIDATION});</li>
- *   <li>the player must be online
- *       ({@link LinkActionResult.Error#PLAYER_OFFLINE_REQUIRED}) — see
- *       {@link #allowOffline(String)}.</li>
- * </ol>
+ * the request to that player's own data</em>. A given {@code quest} must be a well-formed id naming a
+ * loaded quest this player may <em>see</em> — a quest hidden behind an unopened {@code visible_gate}
+ * answers exactly like one that does not exist — and must be complete for them (or, at
+ * {@code scope: server}, for the world); otherwise {@link LinkActionResult.Error#VALIDATION}.
  *
  * <p>Server thread only.
  */
@@ -61,8 +60,11 @@ public final class QuestLinkActions implements LinkActionHandler {
 
     private static final List<String> ACTIONS = List.of(QuestLinkModule.ACTION_CLAIM_REWARD);
 
-    /** Sent back on a successful claim, so the app can explain why nothing arrived in-game. */
-    private static final String AUTO_GRANT_NOTE = "rewards are granted automatically on completion";
+    /** Sent back when nothing (matching) is owed any more. */
+    private static final String NOTHING_OWED_NOTE = "nothing is owed; rewards are granted automatically on completion";
+
+    /** Sent back when entries remain (refused credits, or items/experience that need the player in-game). */
+    private static final String STILL_OWED_NOTE = "some rewards are still kept; items and experience are handed over in-game";
 
     @Override
     public String moduleId() {
@@ -75,15 +77,13 @@ public final class QuestLinkActions implements LinkActionHandler {
     }
 
     /**
-     * {@code false} — deliberately, for now. Core's javadoc names a reward claim as the canonical
-     * offline-capable action, and it will become one here: once unclaimed rewards are parked in a
-     * queue they can be granted to a logged-off player. Today they cannot — item and experience
-     * rewards need a live body to land in and are skipped for an offline recipient — so an offline
-     * claim would silently do nothing while reporting success. Refusing it is the honest answer.
+     * {@code true} for {@code claim_reward} only (AUD-09). An offline claim can only settle owed
+     * <b>currency</b> — balances are UUID-keyed — so items and experience stay kept and are reported as
+     * remaining until the player is in the world to receive them.
      */
     @Override
     public boolean allowOffline(String actionId) {
-        return false;
+        return QuestLinkModule.ACTION_CLAIM_REWARD.equals(actionId);
     }
 
     @Override
@@ -114,47 +114,128 @@ public final class QuestLinkActions implements LinkActionHandler {
 
     private static LinkActionResult claimReward(MinecraftServer server, UUID playerId,
                                                 JsonObject params) {
+        boolean questGiven = params != null && params.has("quest");
         Identifier questId = questId(params);
-        if (questId == null) {
+        if (questGiven && questId == null) {
             return LinkActionResult.error(LinkActionResult.Error.VALIDATION,
-                    "This action needs a 'quest' parameter holding a quest id.");
+                    "The 'quest' parameter must hold a quest id.");
         }
-
-        Map<Identifier, Quest> definitions = QuestDefinitions.questsForServer(server);
-        Quest quest = definitions.get(questId);
-        // Gate visibility is resolved for the player themselves, so a hidden quest is indist-
-        // inguishable from a missing one — the app can never probe for hidden content.
-        Set<Identifier> openGates = QuestLinkAccess.openGates(server, playerId);
-        if (quest == null || !quest.isVisible(openGates)) {
+        boolean keyGiven = params != null && params.has("key");
+        String key = entryKey(params);
+        if (keyGiven && key == null) {
             return LinkActionResult.error(LinkActionResult.Error.VALIDATION,
-                    "There is no quest '" + questId + "' here.");
+                    "The 'key' parameter must hold an owed entry key.");
         }
 
         QuestProgressState state = QuestProgressState.get(server);
-        boolean serverScope = quest.scope() == QuestScope.SERVER;
-        QuestProgress progress = (serverScope
-                ? state.serverProgress(quest.id())
-                : state.progress(playerId, quest.id())).orElse(QuestProgress.EMPTY);
-        if (!progress.isComplete()) {
-            return LinkActionResult.error(LinkActionResult.Error.VALIDATION,
-                    "Quest '" + questId + "' is not complete, so it has no reward to claim.");
-        }
-
-        if (!QuestLinkAccess.isOnline(server, playerId)) {
-            return LinkActionResult.error(LinkActionResult.Error.PLAYER_OFFLINE_REQUIRED,
-                    "Quest rewards can only be claimed while you are online.");
-        }
-
-        // Nothing is granted: the payout already ran when the quest completed. Answering 'ok'
-        // keeps the action idempotent and safe to press twice.
         JsonObject result = new JsonObject();
-        result.addProperty("quest", questId.toString());
-        result.addProperty("scope", QuestLinkSnapshots.scopeName(quest.scope()));
+        if (key != null) {
+            // G1 request idempotency: the owed entry key is the request id. An entry that is gone was
+            // already settled (or never existed for this player) — answer success with nothing delivered.
+            boolean present = false;
+            for (OwedReward entry : state.owed(playerId)) {
+                if (key.equals(entry.requestKey())) {
+                    present = true;
+                    break;
+                }
+            }
+            result.addProperty("key", key);
+            result.addProperty("already_settled", !present);
+        }
+        if (questId != null) {
+            Map<Identifier, Quest> definitions = QuestDefinitions.questsForServer(server);
+            Quest quest = definitions.get(questId);
+            // Gate visibility is resolved for the player themselves, so a hidden quest is indist-
+            // inguishable from a missing one — the app can never probe for hidden content.
+            Set<Identifier> openGates = QuestLinkAccess.openGates(server, playerId);
+            if (quest == null || !quest.isVisible(openGates)) {
+                return LinkActionResult.error(LinkActionResult.Error.VALIDATION,
+                        "There is no quest '" + questId + "' here.");
+            }
+            boolean serverScope = quest.scope() == QuestScope.SERVER;
+            QuestProgress progress = (serverScope
+                    ? state.serverProgress(quest.id())
+                    : state.progress(playerId, quest.id())).orElse(QuestProgress.EMPTY);
+            if (!progress.isComplete()) {
+                return LinkActionResult.error(LinkActionResult.Error.VALIDATION,
+                        "Quest '" + questId + "' is not complete, so it has no reward to claim.");
+            }
+            result.addProperty("quest", questId.toString());
+            result.addProperty("scope", QuestLinkSnapshots.scopeName(quest.scope()));
+            result.addProperty("completed_at", progress.completedAt());
+        }
+
+        // Currency first (UUID-keyed: works offline), then — only for a player in the world who can
+        // take them — kept items and experience. Each entry is settled by its own key, so pressing
+        // claim twice can never hand anything over twice.
+        JsonArray delivered = new JsonArray();
+        long credits = 0L;
+        for (OwedReward entry : state.owed(playerId)) {
+            if (!entry.isCurrency() || (questId != null && !questId.equals(entry.source()))
+                    || (key != null && !key.equals(entry.requestKey()))) {
+                continue;
+            }
+            if (CurrencyPayouts.claimOne(server, playerId, entry)) {
+                JsonObject row = new JsonObject();
+                row.addProperty("type", "currency");
+                row.addProperty("currency", entry.currency().toString());
+                row.addProperty("amount", entry.amount());
+                delivered.add(row);
+                credits += entry.amount();
+            }
+        }
+        ServerPlayer online = server.getPlayerList().getPlayer(playerId);
+        if (credits > 0L && online != null) {
+            online.sendSystemMessage(Component.translatable("message.neroquests.owed_paid", Long.valueOf(credits)));
+        }
+        if (OwedDelivery.canReceive(online)) {
+            for (OwedDelivery.Delivered given : OwedDelivery.deliver(online, questId, key, false)) {
+                JsonObject row = new JsonObject();
+                row.addProperty("type", given.kind().serialName());
+                if (given.kind() == OwedReward.Kind.ITEM) {
+                    row.addProperty("item", given.id().toString());
+                    row.addProperty("count", given.amount());
+                } else {
+                    row.addProperty("amount", given.amount());
+                }
+                delivered.add(row);
+            }
+        }
+
+        JsonArray owed = new JsonArray();
+        for (OwedReward entry : state.owed(playerId)) {
+            if ((questId != null && !questId.equals(entry.source()))
+                    || (key != null && !key.equals(entry.requestKey()))) {
+                continue;
+            }
+            // Schema-2 owed row (key, type, amount|item+count, currency?, quest?, reason, created_at,
+            // permanent) plus the schema-1 'source'.
+            JsonObject row = QuestLinkJson.owedRow(entry);
+            row.addProperty("source", entry.source().toString());
+            owed.add(row);
+        }
+
+        result.add("delivered", delivered);
+        result.addProperty("remaining", owed.size());
+        result.add("owed", owed);
+        // Pre-AUD-09 fields, kept for clients written against schema 1.
         result.addProperty("claimed", true);
-        result.addProperty("granted_now", false);
-        result.addProperty("completed_at", progress.completedAt());
-        result.addProperty("note", AUTO_GRANT_NOTE);
+        result.addProperty("granted_now", !delivered.isEmpty());
+        result.addProperty("note", owed.isEmpty() ? NOTHING_OWED_NOTE : STILL_OWED_NOTE);
         return LinkActionResult.ok(result);
+    }
+
+    /** The {@code key} parameter (an owed entry key, at most 256 chars), or {@code null} if absent or malformed. */
+    private static String entryKey(JsonObject params) {
+        if (params == null || !params.has("key")) {
+            return null;
+        }
+        JsonElement element = params.get("key");
+        if (element == null || !element.isJsonPrimitive()) {
+            return null;
+        }
+        String raw = element.getAsString();
+        return raw == null || raw.isBlank() || raw.length() > 256 ? null : raw.trim();
     }
 
     /** The {@code quest} parameter as an id, or {@code null} if it is absent or malformed. */

@@ -19,8 +19,9 @@ behaviour:
 
 | Style | How it moves | Can it go down? | Types |
 | --- | --- | --- | --- |
-| **Measured** | Recounted from the world as it is right now | Only `collect_item` | `collect_item`, `reach_dimension`, `gate_open`, `quest_complete` |
-| **Counted** | Adds up as events happen | No | `craft_item`, `kill_entity`, `custom_event` |
+| **Measured** | Recounted from the world as it is right now | Only `collect_item` | `collect_item`, `reach_dimension`, `visit_structure`, `gate_open`, `quest_complete` |
+| **Counted** | Adds up as events happen | No | `craft_item`, `kill_entity`, `custom_event`, `economy` |
+| **Confirmed** | Ticked by a quest author with a command | No | `manual` |
 
 A **measured** objective is recomputed rather than tallied, which makes it impossible to farm — you
 cannot cycle the same ten iron ingots through your inventory and be credited twenty. The trade-off
@@ -50,9 +51,18 @@ what the answer is.
 | `item` | item id | one of | — | A single item. Mutually exclusive with `tag`. |
 | `tag` | item tag id | one of | — | Any item in the tag (no `#` prefix). Mutually exclusive with `item`. |
 | `count` | integer ≥ 1 | no | `1` | How many are needed. |
+| `consume` | boolean | no | `false` | Hand the items in: the quest takes them when it completes. |
 
 Exactly one of `item` / `tag` must be given; declaring both, or neither, drops the quest with a
 warning.
+
+**`"consume": true` turns the objective into a hand-in.** Without it the objective only checks what
+you carry, so one stack passed from account to account completes the quest on every one of them.
+With it, the quest takes `count` matching items from the completing player at the moment it
+completes; every hand-in of a quest is checked first and taken together, so a quest with two
+hand-ins never takes one and then fails on the other. The quest book shows these as "Hand in".
+Prefer it on any collect-only quest that pays out, or pair the reward with
+[`once_per_world`](Rewards.md#neroquestscurrency).
 
 Counted slots are the whole player inventory: hotbar, main inventory, off-hand and worn equipment.
 Chests, shulker boxes and backpacks are **not** counted — you have to be carrying it. Give the
@@ -133,7 +143,9 @@ player-scope gate, so there is no missing-content degradation here (see below). 
 
 ### `neroquests:quest_complete`
 
-Another quest must be complete for the same holder.
+Another quest must be complete, checked in the scope of the quest it names — exactly like a
+prerequisite: a `scope: player` quest must be complete for the player, a `scope: server` quest for
+the world, whatever the scope of the quest that asks.
 
 ```json
 { "type": "neroquests:quest_complete", "quest": "mypack:chapter1/wake_up" }
@@ -197,6 +209,76 @@ says why in `/neroquests reload-check`.
 [Quest format](Quest-Format.md) carries the `<modid>:<channel>` convention and **the table of channels
 that exist today** across Nerotech, NeroColonies and NeroCreatures.
 
+### `neroquests:economy`
+
+Trade on the server's economy: sell or buy goods, or earn credits from other activities.
+
+```json
+{ "type": "neroquests:economy", "event": "sold", "tag": "c:ingots/iron", "count": 64 }
+{ "type": "neroquests:economy", "event": "bought", "count": 32 }
+{ "type": "neroquests:economy", "event": "earned", "count": 500 }
+```
+
+| Field | Type | Required | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `event` | `sold` \| `bought` \| `earned` | yes | — | What counts. |
+| `item` | item id | no | any | Only this item counts (`sold` / `bought`). Mutually exclusive with `tag`. |
+| `tag` | item tag id | no | any | Only items in this tag count (no `#` prefix). |
+| `count` | integer ≥ 1 | no | `1` | Units sold or bought, or credits earned. |
+
+Fed by an economy mod's trade events (NeroEconomy 0.3.0 or later). `sold` and `bought` count
+units of every settled trade on your side of it, whichever venue settled it. `earned` counts credits
+other mods paid you through the economy's budgeted payouts — **never** NeroQuests' own quest or
+contract rewards, or a reward could complete an "earn" quest by itself.
+
+Counted, and the tally never falls. Only an online player is credited: a trade settled while you are
+logged out (a resting order filling) is not stored for later.
+
+**Without an economy mod the objective loads fine and never advances.** It is deliberately not
+treated as missing content, so `missingModObjectivePolicy` can never skip or auto-complete it. Hide
+such quests behind an economy milestone gate with `visible_gate` (the economy mod's player gates,
+such as `neroeconomy:first_sale`) and they stay invisible on servers without one — the built-in
+market quests do exactly that.
+
+### `neroquests:visit_structure`
+
+Stand inside a generated structure — a village, a ruin, a mod's outpost.
+
+```json
+{ "type": "neroquests:visit_structure", "structure": "minecraft:village_plains" }
+{ "type": "neroquests:visit_structure", "tag": "minecraft:village" }
+```
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `structure` | structure id | one of | A single structure. Mutually exclusive with `tag`. |
+| `tag` | structure tag id | one of | Any structure in the tag (no `#` prefix). Mutually exclusive with `structure`. |
+
+Measured on the once-a-second sweep, for players who have the quest in progress: your position is
+checked against the structure pieces of the chunk you stand in — data that chunk already holds, so it
+costs no searching. Standing anywhere inside a piece counts. A milestone: once visited it stays done.
+No position is stored or sent anywhere. An unknown structure from a mod that is not installed is
+missing content; an unknown one from a loaded mod is a typo.
+
+### `neroquests:manual`
+
+The escape hatch for things the game cannot detect — "build a statue in the town square".
+
+```json
+{ "type": "neroquests:manual", "label": "quest.mypack.town.statue.manual" }
+```
+
+| Field | Type | Required | Meaning |
+| --- | --- | --- | --- |
+| `label` | translation key | yes | The objective's text in the book. |
+
+It never advances by itself. A quest author ticks it for an **online** player with
+`/neroquests manual complete <quest> <player>` (see [Commands](Commands.md)); the quest must be
+available to that player. If the quest has other objectives it completes once they are done too. Who
+may run the command — a player who may author quests ([Editor permissions](Editor-Permissions.md)), at
+most 10 times a minute, or the console — is decided on the server every time. In a custom quest the
+`label` is the author's own plain text instead of a translation key. Each use is counted in the log; the log never names who.
+
 ## Server-scoped quests
 
 A quest with `"scope": "server"` keeps **one shared set of counters for the whole world**. Any
@@ -217,16 +299,30 @@ uncompletable forever. Instead it **degrades**, controlled by the server-authori
 | `skip` (default) | The objective is ignored — it neither blocks the quest nor shows progress. |
 | `autocomplete` | The objective counts as done and its counter is filled in, so the book shows it ticked. |
 
-Either way the quest stays completable, and the offending objective is logged once per server run
-naming only resource ids — never player data.
+Either way the quest stays completable as long as **at least one** of its objectives is present, and
+the offending objective is logged once per server run naming only resource ids — never player data.
+A completion that relied on `autocomplete` pays **no rewards** unless the server-authoritative
+`degradedCompletionsPay` key is set to `true` (default `false`).
 
 An objective counts as "missing content" when its item or entity id is unregistered, its tag
-resolves to nothing, its dimension is not loaded, its `custom_event` channel is namespaced to a mod
-that is not installed, or the quest it points at no longer exists. Note that a quest whose objectives
-*all* degrade completes as soon as it becomes available; that is the intended consequence of `skip`.
+resolves to nothing, its dimension is not loaded, its `custom_event` channel cannot fire here (see
+below), its `gate_open` gate is defined by nothing installed (and is not open anyway), or the quest it
+points at no longer exists. A quest whose objectives *all* degrade is **not completable** — it would
+otherwise complete, and pay, the moment it became available.
 
-`gate_open` is the one exception — Core resolves any gate id, so an unknown gate is simply a closed
-gate rather than missing content.
+**Typos are not missing content.** An id that does not resolve although the mod owning its namespace
+is loaded (or the namespace is `minecraft`, `neroquests` or `nerolandcore`) is treated as a mistake:
+the whole quest is dropped and `/neroquests reload-check` names the objective. Tags count as typos
+only in those three namespaces, because another mod's tag may legitimately be filled by a third mod
+that is not installed.
+
+A `custom_event` channel is present when the **quest** belongs to a pack whose mod is loaded (or to a
+plain datapack namespace); for NeroQuests' own quests, when the channel's mod is loaded, the channel
+has been seen this session, or its namespace is not a mod id at all.
+
+**Quest packs never auto-complete.** A pack only loads when its mod is installed, so the
+`autocomplete` policy applies to NeroQuests' own quests only; a missing piece of a pack quest is always
+skipped. A pack chapter shown with `show_when_absent` (its mod missing) is never completable at all.
 
 A `custom_event` channel whose mod *is* installed but whose publisher is switched off (NeroColonies'
 `thresholdEventsEnabled`, Nerotech's `pollutionEventThreshold`) is **not** missing content. The mod is

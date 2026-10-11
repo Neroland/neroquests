@@ -1,24 +1,40 @@
 # Commands
 
-NeroQuests ships one command tree, `/neroquests`, for server operators. Everything under it is
-**server-authoritative** and requires **permission level 2** (game-master / op) — the same level
-Neroland Core's `/neroland` admin branches use. A player without it never sees the tree.
+NeroQuests ships one command tree, `/neroquests`, mostly for server operators. Everything under it
+is **server-authoritative**. `list` and `reload-check` require **permission level 2** (game-master /
+op) — the same level Neroland Core's `/neroland` admin branches use. The commands that change or
+reveal one player's data — `grant`, `revoke`, `reset` and `export` — require **permission level 3**
+*and* must be run by a player or from the server console (or RCON): **command blocks, command-block
+minecarts and functions cannot run them**. `manual complete` is for quest authors (the
+[editor permission](Editor-Permissions.md) rule), or the console. The editor and custom-quest commands
+follow the same player-or-console rule at level 3 (`editor allow|deny|check|list`, `custom export`,
+`custom delete`) or level 4 (`editor lock|unlock`, `custom import`). A player without permission sees
+only `contracts`.
 
-There is no player-facing command: the [quest book](Quest-Book.md) is how players read their own
-quests.
+The one player-facing branch is `/neroquests contracts` (see [Daily contracts](Daily-Contracts.md));
+the [quest book](Quest-Book.md) is how players read their own quests.
 
 ## At a glance
 
 | Command | What it does |
 | --- | --- |
 | `/neroquests grant <player> <quest>` | Completes a quest for a player, firing its rewards |
-| `/neroquests revoke <player> <quest>` | Clears a player's completion and counters for one quest |
+| `/neroquests revoke <player> <quest> [--repay]` | Clears a player's completion and counters for one quest |
 | `/neroquests reset <player>` | Wipes all of a player's stored quest progress |
-| `/neroquests reset <player> <quest>` | Same as `revoke` — one behaviour, two spellings |
+| `/neroquests reset <player> <quest> [--repay]` | Same as `revoke` — one behaviour, two spellings |
 | `/neroquests list` | Lists every loaded quest with its chapter and scope |
 | `/neroquests list <player>` | Per-quest status for one player |
-| `/neroquests reload-check` | Re-reads the datapacks and reports what was rejected |
+| `/neroquests reload-check` | Per-source quest counts and what the last datapack load rejected |
 | `/neroquests export <player>` | Prints one player's own progress as JSON (data-access requests) |
+| `/neroquests manual complete <quest> <player>` | Ticks a quest's `manual` objectives for an online player |
+| `/neroquests editor allow\|deny\|check <player>` | Manage or query the quest-editor allow-list |
+| `/neroquests editor list` | Allow-list size, lock state, and whether you are on the list |
+| `/neroquests editor lock\|unlock` | Freeze or reopen quest authoring for everyone below level 4 |
+| `/neroquests custom export [<chapter>]` | Write custom quests as a datapack folder (the route to a real pack) |
+| `/neroquests custom import <folder> [--dry-run]` | Copy a quest-pack folder from `datapacks/` into the custom store |
+| `/neroquests custom delete <id> [confirm]` | Delete a custom chapter or quest (asks for `confirm` within 30 s) |
+| `/neroquests contracts` | **Any player:** today's daily contracts and their status |
+| `/neroquests contracts submit <contract>` | **Any player:** hand in one of today's contracts |
 
 ## Arguments
 
@@ -68,10 +84,16 @@ Two things worth knowing:
 
 - **Rewards are not clawed back.** They live in inventories, XP levels, Core gates, currency balances
   and faction reputation, none of which NeroQuests owns. The success message says so.
-- **A revoked quest can complete itself again.** If its objectives still measure as satisfied (the
-  player is still holding the items a `collect_item` objective counts), the next engine sweep will
-  simply re-complete it — and fire its rewards a second time. Revoke is for fixing a mis-`grant`, not
-  for taking a finished quest away.
+- **A revoked quest stays revoked until the player's progress changes.** The objective counters are
+  snapshotted at revoke time; the engine will not re-complete the quest while every counter still
+  matches that snapshot (a player still holding the items, a gate still open). Once something
+  actually changes, the quest can complete normally again. `grant` overrides this.
+- **Rewards are paid at most once.** A paid ledger records every quest whose rewards were paid, and a
+  revoke leaves the quest in it: a later re-completion (or `grant`) completes it without paying. Add
+  `--repay` at the end to remove it from the ledger so its next completion pays again:
+  `/neroquests revoke Steve neroquests:intro/first_steps --repay`.
+- Quests that depend on the revoked one (prerequisite or `quest_complete`) are **not** revoked with
+  it; the command tells you how many completed dependents stay complete.
 
 For a `scope: server` quest the shared row is cleared and everyone is re-synced; the named player
 only chooses which section of the store you mean.
@@ -134,17 +156,26 @@ exact verdict.
 /neroquests reload-check
 ```
 
-Re-reads every quest and chapter from the currently-enabled datapacks, then reports:
+Reports on the quest, chapter and contract definitions the server is **currently running** — those
+of the last world start or `/reload` — without re-reading any pack file:
 
 ```text
-Reloaded quest definitions: 3 quest(s) in 1 chapter(s).
+Loaded quest definitions: 42 quest(s) in 5 chapter(s).
+By source: spine 30 / pack mymod 9 / pack myserver 3 / custom 0
+Pack nerospace: mod not installed — 0 quest(s) shown with a badge, 16 not loaded.
 2 validation problem(s):
-  [dropped] neroquests:world/broken - unregistered objective/reward type othermod:smelt_item
+  [dropped] mymod:start/cheat - reward type neroquests:gate is only allowed in quests of the 'neroquests' namespace (...)
   [ignored] neroquests:intro - lists unknown quest neroquests:intro/missing
 ```
 
-Finally it re-sends definitions and progress to every online player, so the quest book updates
-without anyone reconnecting.
+The second line counts loaded quests per **source**: NeroQuests' own spine, each mod's or server
+datapack's pack namespace, and quests made in game. Packs whose mod is not installed are listed next,
+with how many of their quests are shown with a "mod not installed" badge (`show_when_absent`) and how
+many are not loaded. Then every dropped or ignored definition with the rule it broke.
+
+It also resets the "missing content" warnings, so the next evaluation logs each missing id again.
+To pick up edited pack files, run `/reload` first (the quest book updates for everyone within a
+second), then `reload-check` for the report.
 
 Two severities:
 
@@ -158,9 +189,25 @@ command is how you find out that it did. Everything it prints is also in the ser
 just saves you reading it. See [Quest format](Quest-Format.md) for what a valid definition looks
 like.
 
-`reload-check` covers only NeroQuests. A plain vanilla `/reload` is also picked up automatically (the
-mod notices the resource manager changed and re-reads within a second), so use this command when you
-want the *report*, not just the reload.
+`reload-check` covers only NeroQuests. A vanilla `/reload` is picked up automatically (the mod notices
+the resource manager changed and re-reads within a second); `reload-check` never loads anything itself.
+
+## `manual complete`
+
+```text
+/neroquests manual complete <quest> <player>
+```
+
+Ticks every `manual` objective of `<quest>` for an **online** player (see
+[Objectives](Objectives.md#neroquestsmanual)). The quest must be available to them — visible, its
+prerequisites met — and not already complete. If its other objectives are done too it completes
+through the normal path and pays its rewards; otherwise it completes once they are.
+
+Who may run it is decided on the server each time: a player who may author quests (Creative mode,
+permission level `editorMinOpLevel`, or the editor allow-list, unless the editor is locked — see
+[Editor permissions](Editor-Permissions.md)), or the server console. Each person may tick at most 10
+a minute. Each use is counted in the log as an admin action, never with names.
+`<quest>` is a full id (`mymod:town/statue`); suggestions list the quests that have a manual objective.
 
 ## `export`
 
@@ -183,6 +230,13 @@ Prints one player's own quest progress as pretty JSON, to you alone:
 }
 ```
 
+The export also holds the player's owed and kept rewards, their paid ledger and repeat timestamps,
+and under `custom_quests` the custom quests they authored (ids, titles, descriptions, timestamps) and
+whether they are on the editor allow-list.
+
+Run from the server console, the header does not repeat the player's UUID (the console's output is
+the server log); the rows themselves never contain a UUID or a name.
+
 This is the POPIA/GDPR data-access surface described in
 [`../PRIVACY.md`](../PRIVACY.md) and [Data storage](Data-Storage.md). It contains **only** the named
 player's rows: no other player's progress, and no shared `scope: server` progress (which holds no
@@ -190,6 +244,24 @@ player identifiers at all).
 
 Chat is not a file transfer — an export longer than 32 000 characters is cut off with a note. That is
 far beyond any realistic pack.
+
+## `editor` and `custom`
+
+The quest-editor commands — the allow-list, the lock, export, import and delete — are described with
+the settings they work with on [Editor permissions](Editor-Permissions.md). In short:
+
+```text
+/neroquests editor allow Steve          (level 3)
+/neroquests editor check Steve          (level 3) -> on the list or not, no name echoed
+/neroquests editor list                 (level 3) -> count, lock state, whether you are on it
+/neroquests editor lock                 (level 4)
+/neroquests custom export               (level 3) -> datapacks/neroquests_custom_export/
+/neroquests custom import mypack --dry-run   (level 4)
+/neroquests custom delete custom:k3m7q2ab    (level 3), then again with confirm
+```
+
+`reload-check` ends with the editor's lock state, allow-list size, escrow mode and the custom store's
+counts against its limits.
 
 ## Privacy notes
 

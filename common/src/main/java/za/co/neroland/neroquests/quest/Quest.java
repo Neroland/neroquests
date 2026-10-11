@@ -5,6 +5,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.JsonOps;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
@@ -32,6 +33,11 @@ import net.minecraft.resources.Identifier;
  *       that gate is open.</li>
  * </ul>
  *
+ * <p>Two things are resolved at load rather than read from the file (B1/B3): the quest's
+ * {@linkplain #source() source} (from its namespace) and {@link #modAbsent()} — a pack quest kept
+ * only because its chapter sets {@code show_when_absent} although the pack's mod is not installed.
+ * Such a quest is shown with a "mod not installed" badge and is never completable.
+ *
  * <p>Progress state is not part of a definition — it lives per player in the progress store.
  */
 public record Quest(Identifier id,
@@ -42,7 +48,8 @@ public record Quest(Identifier id,
                     List<ObjectiveSpec> objectives,
                     List<RewardSpec> rewards,
                     QuestScope scope,
-                    Optional<Identifier> visibleGate) {
+                    Optional<Identifier> visibleGate,
+                    boolean modAbsent) {
 
     /** The icon used when a quest declares none. */
     public static final Identifier DEFAULT_ICON = Identifier.fromNamespaceAndPath("minecraft", "book");
@@ -61,13 +68,56 @@ public record Quest(Identifier id,
 
     public Quest(Identifier id, Data data) {
         this(id, data.title(), data.description(), data.icon(), data.prerequisites(),
-                data.objectives(), data.rewards(), data.scope(), data.visibleGate());
+                data.objectives(), data.rewards(), data.scope(), data.visibleGate(), false);
+    }
+
+    /** A quest whose pack is present (the usual case). */
+    public Quest(Identifier id, String title, String description, Identifier icon, List<Identifier> prerequisites,
+                 List<ObjectiveSpec> objectives, List<RewardSpec> rewards, QuestScope scope,
+                 Optional<Identifier> visibleGate) {
+        this(id, title, description, icon, prerequisites, objectives, rewards, scope, visibleGate, false);
+    }
+
+    /** Where this quest came from (B1), derived from its namespace. */
+    public QuestSource source() {
+        return QuestSource.of(id);
+    }
+
+    /** A copy marked as belonging to a pack whose mod is not installed (B3): badge, never completable. */
+    public Quest withModAbsent(boolean absent) {
+        return absent == modAbsent ? this : new Quest(id, title, description, icon, prerequisites,
+                objectives, rewards, scope, visibleGate, absent);
+    }
+
+    /**
+     * A stable fingerprint of an objective list (AUD-17): the hash of the list encoded with the
+     * objectives' own codec, so type, target, count and every other field take part, in order. Never
+     * {@code 0}, which stored rows use for "no fingerprint yet". Stable across restarts (it hashes the
+     * encoded JSON text, never identity hash codes).
+     */
+    public static int objectivesFingerprint(List<ObjectiveSpec> objectives) {
+        String canonical;
+        try {
+            canonical = ObjectiveSpec.CODEC.listOf().encodeStart(JsonOps.INSTANCE, objectives)
+                    .result().map(Object::toString).orElse(null);
+        } catch (RuntimeException e) {
+            canonical = null;
+        }
+        if (canonical == null) {
+            StringBuilder fallback = new StringBuilder();
+            for (ObjectiveSpec objective : objectives) {
+                fallback.append(objective.typeId()).append('/').append(objective.target()).append(';');
+            }
+            canonical = fallback.toString();
+        }
+        int hash = canonical.hashCode();
+        return hash == 0 ? 1 : hash;
     }
 
     /** A copy with a different prerequisite list — used by load-time validation to prune dangling ids. */
     public Quest withPrerequisites(List<Identifier> newPrerequisites) {
         return new Quest(id, title, description, icon, List.copyOf(newPrerequisites),
-                objectives, rewards, scope, visibleGate);
+                objectives, rewards, scope, visibleGate, modAbsent);
     }
 
     /**
@@ -76,21 +126,9 @@ public record Quest(Identifier id,
      * {@code ProgressionGates}) so this stays free of server/player plumbing.
      */
     public boolean isVisible(Set<Identifier> openGates) {
+        // Prerequisites and availability live in QuestStates (AUD-18): each prerequisite resolves by
+        // its own scope, which needs the definitions, not just this quest.
         return visibleGate.isEmpty() || openGates.contains(visibleGate.get());
-    }
-
-    /** Whether every prerequisite appears in {@code completedQuests}. Pure. */
-    public boolean prerequisitesMet(Set<Identifier> completedQuests) {
-        return completedQuests.containsAll(prerequisites);
-    }
-
-    /**
-     * Whether this quest is both {@linkplain #isVisible visible} and
-     * {@linkplain #prerequisitesMet unlocked} — i.e. a player may work on it now. Pure; says
-     * nothing about whether it is already complete.
-     */
-    public boolean isAvailable(Set<Identifier> completedQuests, Set<Identifier> openGates) {
-        return isVisible(openGates) && prerequisitesMet(completedQuests);
     }
 
     /** The decoded JSON body of a quest file, before the id (from the path) is attached. */

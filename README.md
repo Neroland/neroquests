@@ -2,13 +2,31 @@
 
 > Part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
 
-**Status:** barebones multiloader skeleton — version `0.0.1-alpha.1`. No gameplay content yet.
+**Status:** beta — version `0.4.0-beta.1`.
+
+A native, datapack-driven quest engine for the Neroland ecosystem:
+
+- **Quests and chapters as datapack JSON**, read by an in-game **quest book** with a chapter graph.
+- **A built-in story line** — three chapters, 28 quests (Groundwork, Industrial Age with a market row,
+  The Space Race) — that a pack can extend, rebalance or replace.
+- **Quest packs from other mods:** a mod ships its own quests as data files in its jar — no dependency
+  either way — and they appear in the book only while that mod is installed. See
+  [Shipping a quest pack](wiki/Shipping-a-Quest-Pack.md).
+- **Ten objective types:** `collect_item` (optionally a hand-in), `craft_item`, `kill_entity`,
+  `reach_dimension`, `visit_structure`, `quest_complete`, `gate_open`, `custom_event`, `economy` and
+  `manual`.
+- **Six reward types:** `item`, `xp`, `currency`, `mod_hook`, `reputation` and `gate`, each paid at most
+  once per player, with undeliverable rewards kept until the player can take them.
+- **Daily contracts** paid from the server economy's budget, and optional **NeroEconomy** payouts.
+- `/neroquests` operator commands, per-player and world-wide progress, and a NeroLink module for the
+  companion app.
 
 ## Build targets
 
 - **Minecraft:** 26.1.2, 26.2 and 26.3
 - **Loaders:** NeoForge, MinecraftForge/Forge, Fabric (the "9 cells")
 - **Java:** 25
+- **Requires:** Neroland Core 1.15.0 or later (below 2.0.0)
 - Mod id: `neroquests` · package `za.co.neroland.neroquests`
 
 ## Layout

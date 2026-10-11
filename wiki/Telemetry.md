@@ -25,19 +25,25 @@ server does dictate; this one is yours.
 Only when NeroQuests itself is involved in the failure — a report is dropped unless its
 stack trace touches `za.co.neroland.neroquests`. Crashes from other mods are never sent.
 
-- the stack trace of the error
+- the error's type and stack frames (class, method, file name, line) — never the error
+  message, and no file paths
 - version strings: NeroQuests, Minecraft, your loader (Fabric / Forge / NeoForge), OS, Java
 - the ids and versions of your other installed mods (public manifest values), to spot
   mod conflicts
 - NeroQuests' own config values (e.g. `gateWritesEnabled`)
-- breadcrumbs — a short trail of what the mod was doing just before the error
-- anonymous stability and timing samples
+- for a failed `/neroquests` command, the subcommand name (never its arguments)
+- one anonymous session record per launch (start, end, whether it ended in an error)
+
+If a fatal log line mentions NeroQuests without an error attached, only the fact that it
+happened is sent; its text is replaced by a fixed placeholder. No breadcrumbs and no
+performance/timing traces are collected.
 
 ## What is never sent
 
 - your IP address
 - your username, player UUID, or any player identity
-- your machine's hostname or OS account name (home-directory paths are rewritten to `/~`)
+- your machine's hostname or OS account name (file paths are removed; error and log
+  messages are never sent)
 - world name, seed, coordinates, or chat
 - **your quest progress** — none of the data described in [`PRIVACY.md`](../PRIVACY.md)
   "What is stored" ever leaves your machine

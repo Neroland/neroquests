@@ -11,5 +11,6 @@
     { "type": "neroquests:item", "item": "minecraft:golden_apple", "count": 1 },
     { "type": "neroquests:currency", "amount": 200 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:reached_orbit"
 }

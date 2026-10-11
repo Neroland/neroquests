@@ -1,0 +1,15 @@
+{
+  "title": "quest.neroquests.market.open_for_business.title",
+  "description": "quest.neroquests.market.open_for_business.desc",
+  "icon": "minecraft:emerald",
+  "objectives": [
+    { "type": "neroquests:gate_open", "gate": "neroeconomy:first_sale" },
+    { "type": "neroquests:gate_open", "gate": "neroeconomy:first_purchase" }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 50 },
+    { "type": "neroquests:currency", "amount": 50 }
+  ],
+  "scope": "player",
+  "visible_gate": "neroeconomy:first_sale"
+}

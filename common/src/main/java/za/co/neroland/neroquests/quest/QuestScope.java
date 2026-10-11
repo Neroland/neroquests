@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.quest;
 import java.util.Locale;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 
 /**
  * Who owns a quest's progress.
@@ -20,7 +21,17 @@ public enum QuestScope {
     PLAYER,
     SERVER;
 
-    public static final Codec<QuestScope> CODEC = Codec.STRING.xmap(
-            s -> QuestScope.valueOf(s.trim().toUpperCase(Locale.ROOT)),
-            scope -> scope.name().toLowerCase(Locale.ROOT));
+    /** Lower-case names, read case-insensitively; an unknown name is a decode error, never a throw (AUD-30). */
+    public static final Codec<QuestScope> CODEC = Codec.STRING.comapFlatMap(
+            QuestScope::parse, scope -> scope.name().toLowerCase(Locale.ROOT));
+
+    private static DataResult<QuestScope> parse(String name) {
+        String normalised = name == null ? "" : name.trim().toUpperCase(Locale.ROOT);
+        for (QuestScope scope : values()) {
+            if (scope.name().equals(normalised)) {
+                return DataResult.success(scope);
+            }
+        }
+        return DataResult.error(() -> "Unknown quest scope '" + name + "'; expected one of player, server");
+    }
 }

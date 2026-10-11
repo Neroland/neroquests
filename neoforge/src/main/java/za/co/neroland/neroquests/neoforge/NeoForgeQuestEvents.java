@@ -5,6 +5,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import za.co.neroland.neroquests.command.QuestCommands;
@@ -31,6 +32,9 @@ public final class NeoForgeQuestEvents {
         NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post event) ->
                 QuestTriggers.serverTick(event.getServer()));
 
+        // Drop every static reference to the stopped server (AUD-31).
+        NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> QuestTriggers.serverStopped());
+
         // Kill credit; the trigger resolves the responsible player from the damage source.
         NeoForge.EVENT_BUS.addListener((LivingDeathEvent event) ->
                 QuestTriggers.entityKilled(event.getEntity(), event.getSource()));
@@ -39,6 +43,13 @@ public final class NeoForgeQuestEvents {
         NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
             if (event.getEntity() instanceof ServerPlayer serverPlayer) {
                 QuestTriggers.playerJoined(serverPlayer);
+            }
+        });
+
+        // Hand over items/experience kept while the player was dead (AUD-05).
+        NeoForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerRespawned(serverPlayer);
             }
         });
 

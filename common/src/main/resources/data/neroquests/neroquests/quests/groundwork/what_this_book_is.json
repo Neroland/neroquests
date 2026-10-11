@@ -1,0 +1,13 @@
+{
+  "title": "quest.neroquests.groundwork.what_this_book_is.title",
+  "description": "quest.neroquests.groundwork.what_this_book_is.desc",
+  "icon": "neroquests:quest_book",
+  "prerequisites": [],
+  "objectives": [
+    { "type": "neroquests:collect_item", "item": "minecraft:crafting_table", "count": 1 }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 5 }
+  ],
+  "scope": "player"
+}

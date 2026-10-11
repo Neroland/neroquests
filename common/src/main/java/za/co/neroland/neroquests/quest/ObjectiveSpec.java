@@ -2,14 +2,17 @@ package za.co.neroland.neroquests.quest;
 
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import com.mojang.serialization.Codec;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 
 import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
+import za.co.neroland.neroquests.quest.engine.EconomyActivity;
 import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
 import za.co.neroland.neroquests.quest.engine.QuestEngine;
 
@@ -111,6 +114,34 @@ public interface ObjectiveSpec {
     }
 
     /**
+     * Units credited by one economy happening (a sale, a purchase, credits earned) reported by an
+     * optional economy mod for the context's player. Return {@code 0} when this objective does not
+     * care. Without an economy mod nothing ever calls this.
+     */
+    default int creditEconomy(EconomyActivity activity, ObjectiveContext context) {
+        return 0;
+    }
+
+    /**
+     * Whether this objective <em>takes</em> something from the player when its quest completes —
+     * a hand-in rather than a show-and-tell. Checked by the engine just before it records a
+     * completion; when any objective of the quest answers {@code true}, every such objective must
+     * first pass {@link #canTakeOnComplete} and then {@link #takeOnComplete} runs for each.
+     */
+    default boolean takesOnComplete() {
+        return false;
+    }
+
+    /** Whether {@link #takeOnComplete} would succeed right now (nothing moves). */
+    default boolean canTakeOnComplete(ObjectiveContext context) {
+        return true;
+    }
+
+    /** Remove what this objective hands in from the context player. Called only after {@link #canTakeOnComplete}. */
+    default void takeOnComplete(ObjectiveContext context) {
+    }
+
+    /**
      * Why this objective could never advance inside a quest of {@code scope} — a short,
      * operator-facing reason — or {@linkplain Optional#empty() empty} when the two are compatible.
      *
@@ -132,6 +163,24 @@ public interface ObjectiveSpec {
      */
     default boolean contentPresent(ObjectiveContext context) {
         return true;
+    }
+
+    /**
+     * Why the id this objective targets is a <b>typo</b> rather than missing content — a short,
+     * operator-facing reason — or {@linkplain Optional#empty() empty} when it resolves or its owner is
+     * genuinely absent (AUD-02). An id is a typo when it does not resolve although the mod owning its
+     * namespace is loaded (or the namespace is {@code minecraft}, {@code neroquests} or
+     * {@code nerolandcore}). A typo'd quest is dropped with this reason in
+     * {@code /neroquests reload-check} instead of silently degrading into a free objective.
+     *
+     * <p>Checked once per definition load, on the server thread once registries and tags are bound.
+     * <b>Resource ids and plain words only</b>.
+     *
+     * @param server        the running server (levels and registries are available)
+     * @param definedQuests every quest id a definition file exists for, valid or not
+     */
+    default Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        return Optional.empty();
     }
 
     /**

@@ -1,6 +1,8 @@
 package za.co.neroland.neroquests.quest.objective;
 
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -8,6 +10,7 @@ import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.MinecraftServer;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
@@ -50,6 +53,16 @@ public record ReachDimensionObjective(Identifier dimension) implements Objective
     @Override
     public boolean contentPresent(ObjectiveContext context) {
         return context.server().getLevel(ResourceKey.create(Registries.DIMENSION, dimension)) != null;
+    }
+
+    /** A dimension that does not exist although its namespace's mod is loaded is a typo (AUD-02). */
+    @Override
+    public Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        if (server.getLevel(ResourceKey.create(Registries.DIMENSION, dimension)) == null
+                && ContentIds.ownedByLoadedMod(dimension.getNamespace())) {
+            return Optional.of("unknown dimension " + dimension + " (its namespace's mod is loaded)");
+        }
+        return Optional.empty();
     }
 
     @Override

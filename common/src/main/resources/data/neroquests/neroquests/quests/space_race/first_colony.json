@@ -11,5 +11,6 @@
     { "type": "neroquests:item", "item": "minecraft:diamond", "count": 4 },
     { "type": "neroquests:currency", "amount": 300 }
   ],
-  "scope": "player"
+  "scope": "player",
+  "visible_gate": "nerolandcore:reached_orbit"
 }

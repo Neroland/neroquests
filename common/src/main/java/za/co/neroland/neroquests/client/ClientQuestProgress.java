@@ -73,11 +73,6 @@ public final class ClientQuestProgress {
         return section.getOrDefault(quest.id(), QuestProgress.EMPTY);
     }
 
-    /** The local player's own progress on a quest id (ignores the shared section). */
-    public static QuestProgress ownProgress(Identifier quest) {
-        return snapshot.own().getOrDefault(quest, QuestProgress.EMPTY);
-    }
-
     /** The world's shared progress on a {@code scope: server} quest id. */
     public static QuestProgress serverProgress(Identifier quest) {
         return snapshot.server().getOrDefault(quest, QuestProgress.EMPTY);
@@ -94,19 +89,23 @@ public final class ClientQuestProgress {
     }
 
     /**
-     * The quest ids that count as complete for this client — the player's own completions plus the
-     * world's completed {@code scope: server} quests. This is the set the book feeds to
-     * {@link Quest#prerequisitesMet(Set)}.
+     * The quest ids the local player has completed in their own section. With
+     * {@link #serverCompletedQuests()} this is what the book hands to
+     * {@link za.co.neroland.neroquests.quest.QuestStates} (AUD-18), which resolves each prerequisite
+     * against the section of its own scope.
      */
-    public static Set<Identifier> completedQuests() {
-        Snapshot current = snapshot;
+    public static Set<Identifier> ownCompletedQuests() {
+        return completedIn(snapshot.own());
+    }
+
+    /** The world's completed {@code scope: server} quest ids. */
+    public static Set<Identifier> serverCompletedQuests() {
+        return completedIn(snapshot.server());
+    }
+
+    private static Set<Identifier> completedIn(Map<Identifier, QuestProgress> section) {
         Set<Identifier> complete = new LinkedHashSet<>();
-        current.own().forEach((quest, progress) -> {
-            if (progress.isComplete()) {
-                complete.add(quest);
-            }
-        });
-        current.server().forEach((quest, progress) -> {
+        section.forEach((quest, progress) -> {
             if (progress.isComplete()) {
                 complete.add(quest);
             }

@@ -4,13 +4,18 @@ import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.objective.CollectItemObjective;
 import za.co.neroland.neroquests.quest.objective.CraftItemObjective;
 import za.co.neroland.neroquests.quest.objective.CustomEventObjective;
+import za.co.neroland.neroquests.quest.objective.EconomyObjective;
 import za.co.neroland.neroquests.quest.objective.GateOpenObjective;
 import za.co.neroland.neroquests.quest.objective.KillEntityObjective;
+import za.co.neroland.neroquests.quest.objective.ManualObjective;
 import za.co.neroland.neroquests.quest.objective.QuestCompleteObjective;
 import za.co.neroland.neroquests.quest.objective.ReachDimensionObjective;
+import za.co.neroland.neroquests.quest.objective.VisitStructureObjective;
 import za.co.neroland.neroquests.quest.reward.CurrencyReward;
 import za.co.neroland.neroquests.quest.reward.GateReward;
 import za.co.neroland.neroquests.quest.reward.ItemReward;
+import za.co.neroland.neroquests.quest.reward.LootTableReward;
+import za.co.neroland.neroquests.quest.reward.ModHookReward;
 import za.co.neroland.neroquests.quest.reward.ReputationReward;
 import za.co.neroland.neroquests.quest.reward.XpReward;
 
@@ -57,6 +62,18 @@ public final class QuestTypes {
     public static final ObjectiveType<CustomEventObjective> CUSTOM_EVENT =
             ObjectiveTypes.register(CustomEventObjective.TYPE_ID, CustomEventObjective.CODEC);
 
+    /** Objective {@code neroquests:economy} (advances only with an economy mod installed). */
+    public static final ObjectiveType<EconomyObjective> ECONOMY =
+            ObjectiveTypes.register(EconomyObjective.TYPE_ID, EconomyObjective.CODEC);
+
+    /** Objective {@code neroquests:manual} (ticked only by an authorised command, C5). */
+    public static final ObjectiveType<ManualObjective> MANUAL =
+            ObjectiveTypes.register(ManualObjective.TYPE_ID, ManualObjective.CODEC);
+
+    /** Objective {@code neroquests:visit_structure} (C5). */
+    public static final ObjectiveType<VisitStructureObjective> VISIT_STRUCTURE =
+            ObjectiveTypes.register(VisitStructureObjective.TYPE_ID, VisitStructureObjective.CODEC);
+
     /** Reward {@code neroquests:xp}. */
     public static final RewardType<XpReward> XP =
             RewardTypes.register(XpReward.TYPE_ID, XpReward.CODEC);
@@ -76,6 +93,14 @@ public final class QuestTypes {
     /** Reward {@code neroquests:reputation}. */
     public static final RewardType<ReputationReward> REPUTATION =
             RewardTypes.register(ReputationReward.TYPE_ID, ReputationReward.CODEC);
+
+    /** Reward {@code neroquests:mod_hook} (opens a sibling's player-scope record gate, C3). */
+    public static final RewardType<ModHookReward> MOD_HOOK =
+            RewardTypes.register(ModHookReward.TYPE_ID, ModHookReward.CODEC);
+
+    /** Reward {@code neroquests:loot_table} (rolled per completion, D2). */
+    public static final RewardType<LootTableReward> LOOT_TABLE =
+            RewardTypes.register(LootTableReward.TYPE_ID, LootTableReward.CODEC);
 
     private QuestTypes() {
     }

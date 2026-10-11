@@ -1,20 +1,26 @@
 package za.co.neroland.neroquests.quest.objective;
 
+import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
+import za.co.neroland.neroquests.quest.QuestStates;
 import za.co.neroland.neroquests.quest.engine.ObjectiveContext;
 
 /**
- * Objective {@code neroquests:quest_complete} — satisfied once the named quest is complete
- * for the same scope holder (the player, or the server for a server-scoped quest).
+ * Objective {@code neroquests:quest_complete} — satisfied once the named quest is complete in the
+ * scope that owns <em>it</em>: a {@code scope: player} target in the evaluating player's own completed
+ * set, a {@code scope: server} target in the world's — the same rule as a prerequisite
+ * ({@link QuestStates#prerequisiteMet}), independent of the scope of the quest that asks.
  *
  * <pre>{@code { "type": "neroquests:quest_complete", "quest": "neroquests:chapter1/first_steps" }}</pre>
  *
@@ -39,16 +45,31 @@ public record QuestCompleteObjective(Identifier quest) implements ObjectiveSpec 
         return TYPE_ID;
     }
 
-    /** The context's completed set is already scope-resolved, so this needs no scope logic. */
+    /** Resolved by the target's own scope, exactly like a prerequisite (R3 follow-up to AUD-18). */
     @Override
     public OptionalInt measure(ObjectiveContext context) {
-        return OptionalInt.of(context.completedQuests().contains(quest) ? 1 : 0);
+        boolean done = QuestStates.prerequisiteMet(quest, context.definitions(),
+                context.playerCompleted(), context.serverCompleted());
+        return OptionalInt.of(done ? 1 : 0);
     }
 
     /** A quest that no longer exists (a removed add-on, a renamed pack entry) degrades. */
     @Override
     public boolean contentPresent(ObjectiveContext context) {
         return QuestDefinitions.quest(quest).isPresent();
+    }
+
+    /**
+     * A quest id no definition file exists for, in a namespace whose mod is loaded (or
+     * {@code neroquests}), is a typo (AUD-02): left as "missing content" it would make the chained
+     * quest free.
+     */
+    @Override
+    public Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        if (!definedQuests.contains(quest) && ContentIds.ownedByLoadedMod(quest.getNamespace())) {
+            return Optional.of("quest_complete names unknown quest " + quest);
+        }
+        return Optional.empty();
     }
 
     @Override

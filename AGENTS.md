@@ -8,13 +8,17 @@
   A **native, datapack-driven quest engine**: quest/chapter definitions loaded from datapacks, an
   objective + trigger engine, rewards (items, XP, Core gates, currency, reputation), per-player and
   server-scope progress storage, server→client sync, the in-game quest book GUI, the `/neroquests`
-  operator commands, and a NeroLink link module exposing quest data to companion clients. It ships
-  **no quest content of its own yet** — the engine is the product; packs supply the quests. Add
-  shared content under `common/` and wire it through each loader entry point, and document every
-  feature with its own page under `wiki/`.
+  operator commands, and a NeroLink link module exposing quest data to companion clients. It ships a
+  **built-in three-chapter story line (28 quests) and eight daily contracts** as datapack JSON under
+  `common/src/main/resources/data/neroquests/neroquests/`; packs extend or replace them. Add shared
+  content under `common/` and wire it through each loader entry point, and document every feature
+  with its own page under `wiki/`.
 - Mod id: **`neroquests`** (matches the registry namespace + every loader manifest). Package root:
   `za.co.neroland.neroquests`. Author: **Neroland**.
-- Version: **0.0.1-alpha.1**.
+- Version: **0.4.0-beta.1**.
+- Requires **Neroland Core 1.15.0+** (`nerolandcore_version` in `gradle.properties`, resolved from
+  `mavenLocal()`); manifests floor at that version and cap below 2.0.0. NeroEconomy is an optional
+  `compileOnly` dependency.
 - Targets **MC 26.1.2, 26.2 AND 26.3** on **NeoForge, MinecraftForge/Forge, and Fabric** → the **"9 cells"**.
   **Java 25.** Mappings = official Mojang names (26.x ships de-obfuscated; no Parchment).
 
@@ -47,6 +51,7 @@
   :fabric:26.1.2:build :fabric:26.2:build :fabric:26.3:build`.
 - Static analysis: `./gradlew :fabric:26.2:ecjCheck` (the VS Code Problems panel, via `tools/ecj.prefs`).
   The task only FAILS on errors.
+- Tests: `./gradlew :fabric:26.2:test` (JUnit 5 over `common/src/test/java`, run on that cell only).
 - A Cowork agent sandbox cannot decompile Minecraft — run builds natively (or via the local gradle MCP)
   on the developer's machine.
 - **Verify the cells build before marking a task done.** Never sign off on an uncompiled change.

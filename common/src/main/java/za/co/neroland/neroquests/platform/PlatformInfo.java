@@ -1,6 +1,7 @@
 package za.co.neroland.neroquests.platform;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * The loader-specific facts the common module is allowed to depend on.
@@ -38,4 +39,12 @@ public interface PlatformInfo {
      * triage. These are public manifest strings only — never personal data (POPIA/GDPR).
      */
     List<String> getLoadedModIds();
+
+    /**
+     * The display name of the loaded mod {@code modId} (a public manifest value), for the quest book's
+     * "Provided by" tooltips; empty when the mod is not loaded or has no name.
+     */
+    default Optional<String> modDisplayName(String modId) {
+        return Optional.empty();
+    }
 }

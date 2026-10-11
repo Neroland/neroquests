@@ -1,10 +1,14 @@
 package za.co.neroland.neroquests.quest.objective;
 
+import java.util.Optional;
+import java.util.Set;
+
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
@@ -53,6 +57,11 @@ public record CraftItemObjective(ItemTarget selector, int count) implements Obje
     @Override
     public boolean contentPresent(ObjectiveContext context) {
         return selector.present();
+    }
+
+    @Override
+    public Optional<String> unknownTarget(MinecraftServer server, Set<Identifier> definedQuests) {
+        return selector.typo();
     }
 
     @Override

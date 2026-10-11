@@ -1,35 +1,47 @@
 # Quest format (datapack JSON)
 
-NeroQuests is **datapack-driven**. Every quest and every chapter of the quest book is a JSON
-file, so modpacks and servers can add, change or remove content without touching code. The
-built-in [story chapters](Story-Chapters.md) are written in exactly this format and carry no
-special status — they ship in the `neroquests` namespace, and a pack overrides or removes them the
-same way it would anyone else's content.
+This page is **the contract** quest packs are written against: every field of a quest and a chapter,
+every objective and reward type, the `custom_event` channel syntax, what NeroQuests publishes when a
+quest completes, and the validation rules for each source. If you ship quests inside your own mod,
+read [Shipping a quest pack](Shipping-a-Quest-Pack.md) next — it is the step-by-step version.
 
-Files live in a datapack (or inside another mod's `data/` folder):
+NeroQuests is **datapack-driven**. Every quest and every chapter of the quest book is a JSON file, so
+mods, modpacks and servers add, change or remove content without touching code.
 
 ```text
 data/<namespace>/neroquests/quests/<path>.json     -> quest   <namespace>:<path>
 data/<namespace>/neroquests/chapters/<path>.json   -> chapter <namespace>:<path>
 ```
 
-The **id comes from the file path**, never from the file body. `data/mypack/neroquests/quests/
-chapter1/first_steps.json` defines the quest `mypack:chapter1/first_steps`. Ship a file with an
-id that already exists and yours replaces it — that is how you override a quest.
+The **id comes from the file path**, never from the file body:
+`data/mypack/neroquests/quests/start/first_steps.json` defines the quest `mypack:start/first_steps`.
+Ship a file with an id that already exists and yours replaces it. Definitions are read from the
+server's datapacks; everything is **server-authoritative** and the client only displays what the
+server sends.
 
-Definitions are read from the server's datapacks and cached. Everything is
-**server-authoritative**: the client only ever displays what the server sends it.
+## Sources
+
+Every quest and chapter has a **source**, decided by its namespace when it loads:
+
+| Source | Namespace | What it is | Editable in game |
+| --- | --- | --- | --- |
+| `spine` | `neroquests` | NeroQuests' own [story chapters](Story-Chapters.md) | Never |
+| `pack` | any other datapack namespace | A mod's quest pack (shipped in that mod's jar) or a server's own datapack | Never |
+| `custom` | `custom` | Reserved for quests made in game | Yes, by authorised players |
+
+A datapack file in the `custom` namespace is **dropped** — that namespace belongs to the in-game
+store. Spine and pack quests can never be changed, hidden, deleted or re-rewarded at runtime.
 
 ## Quest file
 
 ```json
 {
-  "title": "quest.mypack.first_steps.title",
-  "description": "quest.mypack.first_steps.desc",
+  "title": "quest.mypack.start.first_steps.title",
+  "description": "quest.mypack.start.first_steps.desc",
   "icon": "minecraft:iron_pickaxe",
-  "prerequisites": ["mypack:chapter1/wake_up"],
+  "prerequisites": ["mypack:start/wake_up"],
   "objectives": [
-    { "type": "neroquests:quest_complete", "quest": "mypack:chapter1/wake_up" }
+    { "type": "neroquests:craft_item", "item": "minecraft:iron_pickaxe" }
   ],
   "rewards": [
     { "type": "neroquests:xp", "amount": 50 }
@@ -41,14 +53,14 @@ Definitions are read from the server's datapacks and cached. Everything is
 
 | Field | Type | Required | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| `title` | string | yes | — | Display name. A **translation key** (put the text in a lang file); a literal string also renders, but ships untranslated. |
-| `description` | string | no | `""` | Longer text in the quest detail panel. Also a translation key. |
+| `title` | string | yes | — | A **translation key**. Packs must use a key (see [Validation](#validation-rules)); the recommended shape is `quest.<namespace>.<path with / as .>.title`. |
+| `description` | string | no | `""` | Longer text in the quest detail panel. A translation key (`….desc`). |
 | `icon` | item id | no | `minecraft:book` | Item shown as the quest's node icon. |
 | `prerequisites` | list of quest ids | no | `[]` | The quest stays locked until all of these are complete. |
-| `objectives` | list of objectives | **yes** | — | Must contain at least one entry. All must be done to complete the quest. |
-| `rewards` | list of rewards | no | `[]` | Granted once, on completion. |
-| `scope` | `player` \| `server` | no | `player` | `player` — everyone completes it for themselves. `server` — one shared completion for the whole world. |
-| `visible_gate` | gate id | no | none | A Neroland Core progression gate. While it is closed the quest is hidden entirely. |
+| `objectives` | list of objectives | **yes** | — | At least one. All must be done to complete the quest. |
+| `rewards` | list of rewards | no | `[]` | Granted once per player, on completion, in order. |
+| `scope` | `player` \| `server` | no | `player` | `player` — everyone completes it for themselves. `server` — one shared completion for the whole world (a "world log" quest). |
+| `visible_gate` | gate id | no | none | A Neroland Core progression gate. While it is closed for a player the quest is hidden from them entirely. |
 
 ## Chapter file
 
@@ -56,212 +68,299 @@ A chapter is one page of the quest book: a title, an icon, and the quests placed
 
 ```json
 {
-  "title": "chapter.mypack.groundwork.title",
+  "title": "chapter.mypack.start.title",
   "icon": "minecraft:crafting_table",
+  "show_when_absent": false,
+  "allow_server_scope": false,
   "quests": [
-    { "quest": "mypack:chapter1/wake_up",     "x": 0, "y": 0 },
-    { "quest": "mypack:chapter1/first_steps", "x": 2, "y": 0 },
-    { "quest": "mypack:chapter1/shelter",     "x": 2, "y": 2 }
+    { "quest": "mypack:start/wake_up",     "x": 0, "y": 0 },
+    { "quest": "mypack:start/first_steps", "x": 2, "y": 0 }
   ]
 }
 ```
 
 | Field | Type | Required | Default | Meaning |
 | --- | --- | --- | --- | --- |
-| `title` | string | yes | — | Chapter tab name (translation key). |
+| `title` | string | yes | — | Chapter tab name — a translation key (`chapter.<namespace>.<path>.title`). |
 | `icon` | item id | no | `minecraft:written_book` | Item shown on the chapter tab. |
-| `quests` | list of entries | no | `[]` | The quests on this page, in listing order. |
-
-Each entry is `{ "quest": <quest id>, "x": <int>, "y": <int> }`. `x`/`y` default to `0` and are
-abstract grid units, not pixels, so the book can scale the layout.
+| `quests` | list of entries | no | `[]` | The quests on this page. Each entry is `{ "quest": <id>, "x": <int>, "y": <int> }`; `x`/`y` default to `0` and are grid units, not pixels. |
+| `show_when_absent` | boolean | no | `false` | Packs only. Keep this chapter visible even when the pack's mod is **not** installed: its quests show a "needs a mod that is not installed" badge and can never be completed. |
+| `allow_server_scope` | boolean | no | `false` | Packs only. The quests this chapter lists may use `"scope": "server"`. |
 
 **Dependency lines are not stored.** The book draws them from each quest's `prerequisites`, so a
-chapter layout can never contradict the real progression graph. Position the nodes; the lines
-follow.
-
-A quest should appear in **one** chapter only. If two chapters list the same quest, the
-alphabetically first chapter id keeps it and the duplicate entry is dropped with a warning.
+layout can never contradict the real progression graph. A quest should appear in **one** chapter; if
+two chapters list it, the alphabetically first chapter id keeps it. A pack chapter may list only its
+own namespace's quests.
 
 ## Objective types
 
-An objective is `{ "type": "<id>", ... }`; the remaining fields depend on the type. Seven types ship:
+An objective is `{ "type": "<id>", ... }`. Ten types ship. [Objectives](Objectives.md) has the full
+behaviour of each (how progress moves, server scope, missing content).
 
-| Type | Does what | Key fields |
+| Type | Done when | Fields (`*` = required) |
 | --- | --- | --- |
-| `neroquests:collect_item` | Have this many matching items on you | `item` \| `tag`, `count` |
-| `neroquests:craft_item` | Make this many matching items | `item` \| `tag`, `count` |
-| `neroquests:kill_entity` | Kill this many matching creatures | `entity` \| `tag`, `count` |
-| `neroquests:reach_dimension` | Set foot in a dimension | `dimension` |
-| `neroquests:gate_open` | A Neroland Core progression gate is open for you | `gate` |
-| `neroquests:quest_complete` | Another quest is complete for the same holder | `quest` |
-| `neroquests:custom_event` | Another mod reported a tracked quantity crossing a threshold | `channel`, `direction`, `audience`, `count` |
+| `neroquests:collect_item` | You hold this many matching items (or hand them in) | `item`* \| `tag`*, `count` (1), `consume` (`false`) |
+| `neroquests:craft_item` | You crafted this many matching items | `item`* \| `tag`*, `count` (1) |
+| `neroquests:kill_entity` | You killed this many matching creatures | `entity`* \| `tag`*, `count` (1) |
+| `neroquests:reach_dimension` | You set foot in a dimension | `dimension`* |
+| `neroquests:visit_structure` | You stood inside a generated structure | `structure`* \| `tag`* |
+| `neroquests:gate_open` | A Neroland Core gate is open for you (read-only) | `gate`* |
+| `neroquests:quest_complete` | Another quest is complete for the same holder | `quest`* |
+| `neroquests:custom_event` | A mod published a matching threshold crossing | `channel`*, `event_scope`, `direction` (`any`), `min_value`, `max_value`, `count` (1), `audience` (`world`) |
+| `neroquests:economy` | You sold, bought or earned on the server economy (needs an economy mod) | `event`* (`sold` \| `bought` \| `earned`), `item` \| `tag`, `count` (1) |
+| `neroquests:manual` | A quest author confirmed it for you | `label`* (a translation key shown as the objective's text) |
 
-**[Objectives](Objectives.md) documents each one in full** — every field, how progress moves, what
-happens on a server-scoped quest, and how objectives referencing an absent mod degrade rather than
-blocking the quest.
+`*` with `|` means **exactly one** of the two. Tags are written without `#`. Counts are integers ≥ 1.
 
-Two things worth knowing before writing a quest file:
+- **`manual`** never advances by itself. An authorised person ticks it for an online player with
+  `/neroquests manual complete <quest> <player>` (see [Commands](Commands.md)) — use it for "build a
+  thing" quests the game cannot detect.
+- **`visit_structure`** is checked once a second for players who have the quest in progress, against
+  the structure pieces of the chunk they stand in. Once visited it stays done.
+- **`economy`** loads without an economy mod but never advances; `earned` never counts NeroQuests'
+  own payouts.
 
-- Item and entity objectives take **exactly one** of an id or a tag. Declaring both, or neither, is
-  an error and drops the quest.
-- An objective naming content this installation does not have (an unknown item, an empty tag, a
-  dimension whose mod is missing, a `custom_event` channel whose mod is missing) never blocks the
-  quest. It follows the server's `missingModObjectivePolicy` setting — `skip` (ignore it) or
-  `autocomplete` (count it as done) — and is logged once, by resource id.
+### `neroquests:custom_event` — channels and the audience rule
 
-### `neroquests:custom_event` — reacting to another mod's world state
-
-`gate_open` waits on **your** progress. `custom_event` waits on the **world's**: a region's pollution
-passing its event threshold, a colony's life support failing or recovering, a boss changing phase.
-The publishing mod fires a *threshold crossing* on Neroland Core's shared event bus and NeroQuests
-listens. Neither mod imports the other — both depend only on Core — so a quest can be written against
-a mod that is not even installed.
+A **channel** is a quantity another mod tracks, named `<modid>:<channel>`. When it crosses a threshold
+the publisher fires a *threshold crossing* on Neroland Core's event bus, and NeroQuests listens.
+Neither mod imports the other.
 
 ```json
-{
-  "type": "neroquests:custom_event",
-  "channel": "nerocolonies:oxygen",
-  "direction": "rising",
-  "audience": "world"
-}
+{ "type": "neroquests:custom_event", "channel": "nerocolonies:oxygen", "direction": "rising" }
 ```
 
-| Field | Type | Required | Default | Meaning |
-| --- | --- | --- | --- | --- |
-| `channel` | id | **yes** | — | The quantity to watch, as `<modid>:<channel>` (see below). |
-| `event_scope` | string | no | any | Exact match on the crossing's scope key — *where* it crossed (a colony id, a region key, a dimension id). Named `event_scope` so it can never be confused with the quest's own `scope`. |
-| `direction` | `rising` \| `falling` \| `any` | no | `any` | Which way the value went. |
-| `min_value` | integer | no | none | The crossing's value must be at least this (inclusive). |
-| `max_value` | integer | no | none | The crossing's value must be at most this (inclusive). |
-| `count` | integer ≥ 1 | no | `1` | How many matching crossings are needed. |
-| `audience` | `world` \| `everyone` | no | `world` | Who the crossing is credited to (see below). |
+A crossing carries exactly five things — `channel`, a scope key (*where*: a colony id, a region, a
+dimension), `value`, `threshold` and whether it was `rising` — and those are all you can match on.
+**A crossing never names a player.** So the quest author must say who hears it:
 
-A crossing carries exactly five things — channel, scope key, value, threshold and direction — and
-those are the only things you can match on. There is no player in it, deliberately: **a crossing
-names a place or a system and never a person**, which is a privacy rule the publishing mods are held
-to, not an oversight.
-
-Note that **`rising` does not mean "good"**. Core defines it as "the value crossed upward", so it is
-recovery on `nerocolonies:oxygen` and a *worsening* on `nerotech:pollution`. Check the channel before
-you assume.
-
-#### The `<modid>:<channel>` convention
-
-A channel id is namespaced by the mod that publishes it, and NeroQuests relies on that: the namespace
-is how it works out whether the publisher is installed at all. A channel from a mod that is not
-present can never fire, so the objective is treated as **missing content** and degrades under
-`missingModObjectivePolicy` exactly like an unknown item id — instead of leaving the quest stuck
-forever. Use a namespace that is a real mod id, or the degradation cannot work.
-
-#### Broadcast versus player-scoped (`audience`)
-
-Because a crossing has no player attached, something has to decide who hears it. Getting this wrong
-would let one colony's good news quietly complete a personal quest for a player who was asleep on the
-other side of the world, so the quest author has to say which they meant:
-
-| `audience` | Who is credited | Use it for |
+| `audience` | Who is credited | Needs |
 | --- | --- | --- |
-| `world` (default) | The quest's **shared** counter, **once** per crossing, however many players were online. | World news. Requires `"scope": "server"`. |
-| `everyone` | **Every online player** whose copy of the quest is available and unfinished. | An event the whole server should get personal credit for. Players offline at that moment miss it. |
+| `world` (default) | The quest's **shared** counter, once per crossing | `"scope": "server"` (a pack also needs `allow_server_scope` on its chapter) |
+| `everyone` | Every online player who has the quest available and unfinished | — |
 
-The default is the conservative one. `world` needs a shared counter, and only a `"scope": "server"`
-quest has one — so a `custom_event` objective left on the default inside a `"scope": "player"` quest
-could never advance. Rather than let that ship, the loader **drops the quest** and names the reason
-in `/neroquests reload-check`. Either give the quest server scope, or write `"audience": "everyone"`
-to say you really do mean everybody.
-
-Progress is a tally of crossings, never a re-measure: there is no way to ask the world how many times
-something has already happened, so a crossing that nobody was online for is simply missed — the same
-way a kill nobody made credits nobody.
-
-#### Channels that exist today
-
-Every channel below is published by a shipping Neroland mod. None of them is required: a quest naming
-one on a server without that mod degrades rather than blocking.
-
-| Channel | Published by | Scope key is | Value is | `rising` means |
-| --- | --- | --- | --- | --- |
-| `nerotech:pollution` | Nerotech | A packed region key | The region's pollution after the change | The region crossed **above** its `pollutionEventThreshold` (worse) |
-| `nerocolonies:oxygen` | NeroColonies | The colony id | `1` holding, `0` failed | Life support came **back up** |
-| `nerocolonies:food_stock` | NeroColonies | The colony id | The colony's stored rations | The colony **stopped** starving |
-| `nerocolonies:morale` | NeroColonies | The colony id | Morale, 0–100 | Work **resumed** (morale back above the work-stop threshold) |
-| `nerocolonies:structures` | NeroColonies | The colony id | How many structures the colony has now built | Always `true` — this one only ever fires on a completion |
-| `nerocreatures:boss_pressure` | NeroCreatures | The dimension id | The boss's current phase number, or `0` on defeat | A phase **advanced**; `falling` is the boss being **defeated** |
-
-Two caveats worth reading before you build content on these:
-
-- **NeroColonies publishes only on an actual change of state.** A colony that has been starving for
-  an hour fires nothing further; you get the crossing when it starts and when it recovers. That is
-  what makes these usable as quest triggers rather than a firehose.
-- **Publishers can be switched off.** NeroColonies gates all four of its channels behind its own
-  `thresholdEventsEnabled` config key, and Nerotech's pollution channel goes quiet when
-  `pollutionEventThreshold` is `0`. A silent publisher is not the same as an absent one: the mod is
-  installed, so the objective does **not** degrade — it simply waits.
+A `custom_event` left on the default `world` inside a `"scope": "player"` quest could never advance,
+so that quest is dropped with the reason. `rising` means "crossed upward" — recovery on one channel,
+worsening on another; read the publisher's documentation. The namespace of the channel must be the
+publishing mod's id; for a pack quest the channel counts as present whenever the pack is loaded.
 
 ## Reward types
 
-A reward is `{ "type": "<id>", ... }`; the remaining fields depend on the type. Five types ship:
+A reward is `{ "type": "<id>", ... }`. Seven types ship. [Rewards](Rewards.md) has the full behaviour
+(order, kept rewards, server scope, degradation).
 
-| Type | Pays out | Key fields |
-| --- | --- | --- |
-| `neroquests:item` | A stack of items (overflow drops at your feet) | `item`, `count` |
-| `neroquests:xp` | Raw experience points | `amount` |
-| `neroquests:gate` | Opens a Neroland Core progression gate | `gate` |
-| `neroquests:currency` | Money, via Core's currency contract | `currency`, `amount` |
-| `neroquests:reputation` | Standing with a faction (may be negative) | `faction`, `amount` |
+| Type | Pays out | Fields (`*` = required) | Allowed for |
+| --- | --- | --- | --- |
+| `neroquests:item` | A stack of items | `item`*, `count` (1–2304) | all |
+| `neroquests:xp` | Experience points | `amount`* (1–1,000,000) | all |
+| `neroquests:currency` | Credits (budgeted when an economy mod is installed) | `amount`* (1–1,000,000), `currency` (`nerolandcore:credits`), `once_per_world` (`false`) | all |
+| `neroquests:loot_table` | One roll of a loot table | `table`* | all |
+| `neroquests:mod_hook` | Tells your mod "this player finished it" (see below) | `gate`* — `<own namespace>:hook/<id>` | spine and packs |
+| `neroquests:gate` | Opens a Neroland Core progression gate | `gate`* | spine only |
+| `neroquests:reputation` | Standing with a faction | `faction`*, `amount`* | spine only |
 
-**[Rewards](Rewards.md) documents each one in full** — every field, how a payout runs, what happens
-on a server-scoped quest, and how a reward needing an absent sibling mod degrades to a no-op instead
-of failing.
+Rewards are paid **once per player per quest** — a revoke and re-completion does not pay again
+unless an operator asks for it — and each reward is isolated, so one that fails never stops the rest.
 
-Three things worth knowing before writing a quest file:
+### `neroquests:mod_hook` — your mod's own reward
 
-- Rewards are granted **once**, on completion, in the order they are listed, each isolated: one
-  reward that fails never stops the rest and never undoes the completion.
-- A reward that cannot pay out — no economy mod for `currency`, no faction mod for `reputation`, an
-  unregistered item id, `gateWritesEnabled=false` for `gate` — grants nothing and logs once. The
-  quest still completes.
-- On a `scope: server` quest, the player-targeted rewards go to the **triggering** player; only
-  `neroquests:gate` takes the server-wide path.
+```json
+{ "type": "neroquests:mod_hook", "gate": "mypack:hook/star_chart" }
+```
 
-## What happens to a broken file
+A pack that wants a custom effect (unlock a page, refill a tank, grant a cosmetic) ships a **record
+gate** in its own jar, `data/mypack/neroland_gates/hook/star_chart.json`, and names it here:
 
-NeroQuests **never crashes on bad content**. Every problem is written to the server log at
-`WARN` level naming the offending resource id, and the smallest sensible thing is dropped:
+```json
+{ "scope": "player", "title": "Star chart bonus" }
+```
+
+The scope must be written out: a Core gate defaults to `server` scope.
+
+On completion NeroQuests opens that gate for the player through Neroland Core (it works for an
+offline player too). Your mod listens on Core's gate events — `CoreEvents.onProgression` or
+`GateEvents.onChange`, where the change's `target` is the player's UUID string — applies its effect,
+and may `close` the gate again to re-arm it for a repeat. Rules:
+
+- The gate must be in the **quest's own namespace** and its path must start with `hook/`.
+- It must be a **player-scope gate with no `requires`**. An undefined gate (your mod is not installed)
+  or one of the wrong shape is reported once in the log and nothing is written.
+- Hook gates are records that **gate nothing**. Never check a hook gate to allow or deny access to
+  anything — that is why they are written even when the server sets `gateWritesEnabled=false`.
+
+## Completion signals
+
+Whenever a quest completes, NeroQuests publishes an anonymous crossing on Core's `ThresholdEvents`
+bus (publisher `neroquests`). Any mod can listen — you need no dependency on NeroQuests:
+
+| Channel | When | `scope` | `value` / `threshold` | `rising` |
+| --- | --- | --- | --- | --- |
+| `neroquests:quest_completed` | Every completion of any quest | The quest id | How many times that quest has now been completed in this world | `true` |
+| `neroquests:chapter_completed` | A completion that finished every quest of its chapter for that player | The chapter id | How many times that chapter has now been completed in this world | `true` |
+
+These say **that** something was completed, never **who**. A server-scope quest completes once, so
+it publishes once. Use them for world effects; use `mod_hook` when the effect belongs to the player.
+
+## Validation rules
+
+NeroQuests **never crashes on bad content**. Every problem is logged at `WARN` naming the resource id,
+the smallest sensible thing is dropped, and `/neroquests reload-check` lists it with the rule it broke.
+
+### Every source
 
 | Problem | What happens |
 | --- | --- |
-| Malformed JSON, or a field of the wrong type | That quest/chapter is dropped. |
-| An objective or reward `type` that is not registered | The **whole quest** is dropped (it could never be completed, or would pay out something unintended). |
-| An objective that could never advance at the quest's `scope` — today, a `custom_event` on `audience: world` inside a `scope: player` quest | The **whole quest** is dropped, with the reason spelled out. |
+| Malformed JSON, a wrong field type, or a value outside its range | The quest/chapter is dropped (never half-loaded). |
+| An objective or reward `type` that is not registered | The whole quest is dropped. |
 | `objectives` empty or missing | The quest is dropped. |
-| `prerequisites` names a quest that does not exist | That **prerequisite is ignored**; the quest itself is kept. |
-| Prerequisite cycle (A needs B needs A), including a quest requiring itself | Every quest in the cycle — and every quest behind it — is dropped, because none of them could ever unlock. |
-| A chapter lists a quest that does not exist (or was dropped above) | That **entry is dropped**; the chapter is kept. |
-| The same quest listed in two chapters | The first chapter by id order keeps it; the duplicate entry is dropped. |
+| A `custom_event` on `audience: world` in a `scope: player` quest | The quest is dropped. |
+| An id that does not resolve although its mod is loaded (a typo) | The quest is dropped, naming the objective. |
+| A `mod_hook` gate outside the quest's namespace or without the `hook/` prefix | The quest is dropped. |
+| A prerequisite that does not exist | That prerequisite is ignored; the quest is kept. |
+| A prerequisite cycle (including a quest requiring itself) | Every quest in or behind the cycle is dropped. |
+| A chapter lists a quest that does not exist (or was dropped) | That entry is ignored; the chapter is kept. |
+| The same quest in two chapters | The first chapter by id keeps it. |
+| A file in the reserved `custom` namespace | Dropped. |
 
-Log lines contain resource ids only — never player names, UUIDs or any other personal data
-(see [`../PRIVACY.md`](../PRIVACY.md)).
+### Packs (any namespace other than `neroquests`)
 
-You do not have to read the log to find these, though: `/neroquests reload-check` re-reads the
-packs and prints the same list in chat, each entry marked `dropped` or `ignored`. See
-[Commands](Commands.md).
+| Rule | If broken |
+| --- | --- |
+| No `neroquests:gate` or `neroquests:reputation` rewards — packs record progress, they never unlock it | Quest dropped |
+| `"scope": "server"` only when a chapter **of the same namespace** lists the quest and sets `"allow_server_scope": true` | Quest dropped |
+| Prerequisites and `quest_complete` objectives may name only quests of the **same namespace** or the `neroquests` spine | Quest dropped |
+| `title` and `description` must be translation keys (lower-case, digits, `_ . -`, at least one dot) — not literal text | Quest dropped |
+| A chapter's `title` must be a translation key | Chapter dropped |
+| A chapter may list only quests of its own namespace | That entry ignored |
+
+### Custom quests (made in game)
+
+Custom quests come from the world's editor store, not from files, but pass the same validation plus
+these rules. A spine or pack quest that breaks the first one is dropped; the rest are checked when an
+author saves (see [Editor permissions](Editor-Permissions.md)).
+
+| Rule | If broken |
+| --- | --- |
+| A spine or pack quest may not depend on a custom quest (prerequisite or `quest_complete`) | That spine/pack quest dropped |
+| `scope: player` only; no `visible_gate` | Custom quest dropped |
+| 1–12 objectives of `collect_item`, `craft_item`, `kill_entity`, `reach_dimension`, `gate_open`, `quest_complete`, `custom_event`, `visit_structure`, `manual`; counts 1–1,000,000 | Custom quest dropped |
+| At most 9 rewards of `item` (one stack each), `loot_table`, `xp`, `currency`, within the server's caps | Custom quest dropped |
+| Title, description and manual labels are plain text (sanitised, at most 64 / 512 / 64 characters) | Custom quest dropped |
+| A custom chapter lists only custom quests; no other chapter may list one | That entry ignored |
+
+### Packs follow their mod
+
+- A pack whose namespace is a **mod that is not installed** loads nothing — no error, it is a smaller
+  install. `reload-check` lists it as "mod not installed".
+- With `"show_when_absent": true` on a chapter, that chapter and the quests it lists stay visible with
+  a badge, and are never completable.
+- A namespace that is **not a mod id** (a server's own datapack) always loads.
+- Pack quests never use the `missingModObjectivePolicy=autocomplete` escape hatch: a pack only loads
+  when its mod is present, so an absent piece of it is simply skipped.
+
+Log lines carry resource ids only — never player names, UUIDs or other personal data (see
+[`../PRIVACY.md`](../PRIVACY.md)).
+
+## Two complete examples
+
+### A player quest (inside a mod's pack)
+
+`data/mypack/neroquests/chapters/start.json`
+
+```json
+{
+  "title": "chapter.mypack.start.title",
+  "icon": "mypack:wrench",
+  "quests": [
+    { "quest": "mypack:start/first_wrench", "x": 0, "y": 0 },
+    { "quest": "mypack:start/workshop",     "x": 2, "y": 0 }
+  ]
+}
+```
+
+`data/mypack/neroquests/quests/start/workshop.json`
+
+```json
+{
+  "title": "quest.mypack.start.workshop.title",
+  "description": "quest.mypack.start.workshop.desc",
+  "icon": "mypack:workbench",
+  "prerequisites": ["mypack:start/first_wrench", "neroquests:groundwork/first_tools"],
+  "objectives": [
+    { "type": "neroquests:craft_item", "item": "mypack:workbench" },
+    { "type": "neroquests:collect_item", "tag": "c:ingots/iron", "count": 16, "consume": true }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 100 },
+    { "type": "neroquests:item", "item": "mypack:wrench", "count": 1 },
+    { "type": "neroquests:mod_hook", "gate": "mypack:hook/workshop_blueprint" }
+  ]
+}
+```
+
+`assets/mypack/lang/en_us.json`
+
+```json
+{
+  "chapter.mypack.start.title": "Getting Started",
+  "quest.mypack.start.workshop.title": "Set Up Shop",
+  "quest.mypack.start.workshop.desc": "Build a workbench and hand in sixteen iron ingots."
+}
+```
+
+### A server world-log quest
+
+`data/mypack/neroquests/chapters/world_log.json`
+
+```json
+{
+  "title": "chapter.mypack.world_log.title",
+  "icon": "minecraft:filled_map",
+  "allow_server_scope": true,
+  "quests": [
+    { "quest": "mypack:world_log/first_meltdown_averted", "x": 0, "y": 0 }
+  ]
+}
+```
+
+`data/mypack/neroquests/quests/world_log/first_meltdown_averted.json`
+
+```json
+{
+  "title": "quest.mypack.world_log.first_meltdown_averted.title",
+  "description": "quest.mypack.world_log.first_meltdown_averted.desc",
+  "icon": "minecraft:blue_ice",
+  "scope": "server",
+  "objectives": [
+    {
+      "type": "neroquests:custom_event",
+      "channel": "mypack:reactor_heat",
+      "direction": "falling",
+      "audience": "world"
+    }
+  ],
+  "rewards": [
+    { "type": "neroquests:xp", "amount": 200 }
+  ]
+}
+```
+
+The world completes it once; its player rewards go to every online player who has it available at
+that moment, each paid once.
 
 ## Reloading
 
-Definitions are read from the running server's datapacks and cached for that server, matching
-how Neroland Core loads its progression gates. A vanilla `/reload` is picked up automatically
-within a second, and `/neroquests reload-check` forces a re-read on demand and reports what it
-found; restarting the world of course also picks up changed files.
-
-When definitions change, existing progress is kept as-is. Progress recorded against a quest that
-no longer exists is simply inert — it is not deleted, and it comes back if the quest returns.
+Definitions are cached per server. A vanilla `/reload` is picked up within a second; restarting the
+world also picks up changed files. `/neroquests reload-check` reports what the running server loaded,
+per source. Existing progress is kept when definitions change; progress for a quest that no longer
+exists is inert and comes back if the quest returns.
 
 ## See also
 
+- [Shipping a quest pack](Shipping-a-Quest-Pack.md)
 - [Objectives](Objectives.md)
 - [Rewards](Rewards.md)
+- [Commands](Commands.md)
 - [Data storage](Data-Storage.md)
 - [Home](Home.md)
-- [Telemetry](Telemetry.md)
 - [Privacy & data protection](../PRIVACY.md)

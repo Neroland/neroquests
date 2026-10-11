@@ -3,7 +3,12 @@
   "id": "${mod_id}",
   "version": "${mod_version}",
   "name": "${mod_name}",
-  "description": "NeroQuests - multiloader build (Fabric).",
+  "description": "Data-driven quests for the Neroland ecosystem: a quest book, a three-chapter story line, objectives and rewards written as datapack JSON, daily contracts, and optional NeroEconomy payouts. Requires Neroland Core.",
+  "contact": {
+    "homepage": "https://neroland.co.za",
+    "sources": "https://github.com/Neroland/neroquests",
+    "issues": "https://github.com/Neroland/neroquests/issues"
+  },
   "authors": ["${mod_authors}"],
   "license": "${mod_license}",
   "accessWidener": "neroquests.accesswidener",
@@ -18,9 +23,15 @@
   ],
   "depends": {
     "fabricloader": ">=${fabric_loader_version}",
-    "minecraft": ">=${minecraft_version}",
-    "java": ">=21",
+    "minecraft": "${minecraft_version_range}",
+    "java": ">=25",
     "fabric-api": "*",
-    "nerolandcore": ">=${nerolandcore_version}"
+    "nerolandcore": ">=${nerolandcore_version} <2.0.0"
+  },
+  "suggests": {
+    "neroeconomy": ">=0.3.0-beta.1"
+  },
+  "breaks": {
+    "neroeconomy": "<0.3.0-beta.1"
   }
 }

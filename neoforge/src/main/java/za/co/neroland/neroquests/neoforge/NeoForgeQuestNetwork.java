@@ -33,6 +33,19 @@ public final class NeoForgeQuestNetwork implements NetworkPlatform {
         for (QuestNetwork.Clientbound<?> cb : QuestNetwork.clientbound()) {
             registerClientbound(registrar, cb);
         }
+        for (QuestNetwork.Serverbound<?> sb : QuestNetwork.serverbound()) {
+            registerServerbound(registrar, sb);
+        }
+    }
+
+    private static <T extends CustomPacketPayload> void registerServerbound(
+            PayloadRegistrar registrar, QuestNetwork.Serverbound<T> sb) {
+        registrar.playToServer(sb.type(), sb.codec(),
+                (payload, context) -> context.enqueueWork(() -> {
+                    if (context.player() instanceof ServerPlayer serverPlayer) {
+                        sb.handler().accept(payload, serverPlayer);
+                    }
+                }));
     }
 
     private static <T extends CustomPacketPayload> void registerClientbound(

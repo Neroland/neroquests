@@ -1,0 +1,7 @@
+{
+  "title": "contract.neroquests.cobblestone",
+  "item": "minecraft:cobblestone",
+  "count": 256,
+  "reward": 25,
+  "weight": 2
+}

@@ -20,10 +20,18 @@ import za.co.neroland.neroquests.platform.NetworkPlatform;
  */
 public final class FabricQuestNetwork implements NetworkPlatform {
 
-    /** Mod-init (both sides): payload types only — NeroQuests has no serverbound payload yet. */
+    /**
+     * Mod-init (both sides): the clientbound payload <em>types</em>, plus the serverbound (quest editor)
+     * types and their receivers. Serverbound receivers belong here rather than in {@link #registerClient()},
+     * because a dedicated server needs them — and keeping them out of the client method is what stops
+     * {@code ClientPlayNetworking} ever loading on one.
+     */
     public static void registerCommon() {
         for (QuestNetwork.Clientbound<?> cb : QuestNetwork.clientbound()) {
             registerClientboundType(cb);
+        }
+        for (QuestNetwork.Serverbound<?> sb : QuestNetwork.serverbound()) {
+            registerServerbound(sb);
         }
     }
 
@@ -41,6 +49,13 @@ public final class FabricQuestNetwork implements NetworkPlatform {
     private static <T extends CustomPacketPayload> void registerClientReceiver(QuestNetwork.Clientbound<T> cb) {
         ClientPlayNetworking.registerGlobalReceiver(cb.type(), (payload, context) ->
                 context.client().execute(() -> cb.handler().accept(payload)));
+    }
+
+    private static <T extends CustomPacketPayload> void registerServerbound(QuestNetwork.Serverbound<T> sb) {
+        PayloadTypeRegistry.serverboundPlay().register(sb.type(), sb.codec());
+        // The common handler hops onto the server thread itself (EditorRequests), so it is called directly.
+        ServerPlayNetworking.registerGlobalReceiver(sb.type(), (payload, context) ->
+                sb.handler().accept(payload, context.player()));
     }
 
     @Override
