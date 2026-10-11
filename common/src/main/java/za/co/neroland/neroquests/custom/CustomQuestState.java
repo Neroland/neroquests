@@ -22,6 +22,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.data.SavedDataRecovery;
+import za.co.neroland.neroquests.quest.QuestSource;
 
 /**
  * The custom-quest store (D1): every editor-made chapter and quest of this world, the editor allow-list
@@ -121,6 +122,7 @@ public final class CustomQuestState extends SavedData {
     // --- writes (only through CustomQuests, the single writer) -----------------
 
     void putChapter(CustomChapter chapter) {
+        requireCustom(chapter.id());
         chapters.put(chapter.slug(), chapter);
         setDirty();
     }
@@ -132,8 +134,19 @@ public final class CustomQuestState extends SavedData {
     }
 
     void putQuest(CustomQuest quest) {
+        requireCustom(quest.id());
         quests.put(quest.id(), quest);
         setDirty();
+    }
+
+    /**
+     * J1 defence in depth: the store holds {@code custom:} ids only, so no editor, import or command path that
+     * goes through it can ever write a spine or pack id (the definitions merge ignores anything else too).
+     */
+    static void requireCustom(Identifier id) {
+        if (id == null || QuestSource.of(id) != QuestSource.CUSTOM) {
+            throw new IllegalArgumentException("the custom quest store holds custom ids only");
+        }
     }
 
     void removeQuest(Identifier id) {
@@ -268,7 +281,9 @@ public final class CustomQuestState extends SavedData {
             state.chapters.put(chapter.slug(), chapter);
         }
         for (CustomQuest quest : quests) {
-            state.quests.put(quest.id(), quest);
+            if (QuestSource.of(quest.id()) == QuestSource.CUSTOM) { // J1: a foreign id is never loaded
+                state.quests.put(quest.id(), quest);
+            }
         }
         for (String raw : allowList) {
             try {

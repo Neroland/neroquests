@@ -33,6 +33,7 @@ import za.co.neroland.neroquests.client.ClientQuestProgress;
 import za.co.neroland.neroquests.client.QuestBookKeys;
 import za.co.neroland.neroquests.client.screen.BookLayout.Layout;
 import za.co.neroland.neroquests.client.screen.BookLayout.Rect;
+import za.co.neroland.neroquests.custom.EditGate;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.platform.Services;
 import za.co.neroland.neroquests.quest.Chapter;
@@ -284,7 +285,7 @@ public class QuestBookScreen extends Screen {
     private void definitionsChanged() {
         this.pendingMoves.clear();
         boolean rebuild = false;
-        if (this.editMode && !ClientQuestDefinitions.canAuthor()) {
+        if (this.editMode && !EditGate.editModeAfterSync(this.editMode, ClientQuestDefinitions.canAuthor())) {
             this.editMode = false;
             this.editor.reset();
             showToast(Component.translatable("gui.neroquests.editor.revoked"));
@@ -327,15 +328,20 @@ public class QuestBookScreen extends Screen {
         this.chapters.addAll(ChapterOrder.sort(new ArrayList<>(ClientQuestDefinitions.allChapters()),
                 chapter -> new ChapterOrder.Row(chapter.id(), chapter.source(), order(chapter))));
         this.selectedChapter = 0;
+        boolean found = false;
         if (keep != null) {
             for (int index = 0; index < this.chapters.size(); index++) {
                 if (this.chapters.get(index).id().equals(keep)) {
                     this.selectedChapter = index;
+                    found = true;
                 }
             }
         }
-        Chapter now = currentChapter();
-        this.selectedChapterId = now == null ? null : now.id();
+        // A chapter the editor just created stays the selection until the sync that brings it arrives.
+        if (found || keep == null || !this.editor.awaiting(keep)) {
+            Chapter now = currentChapter();
+            this.selectedChapterId = now == null ? null : now.id();
+        }
         int max = Math.max(0, this.chapters.size() - this.layout.tabRows());
         this.tabScroll = Mth.clamp(this.tabScroll, 0, max);
     }

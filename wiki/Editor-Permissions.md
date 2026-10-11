@@ -134,4 +134,8 @@ off, custom chapters and quests against their limits, and how many editor change
 server started (a count only — never who or what).
 
 Operators and servers running with `online-mode=false` are outside what a mod can defend: an operator can
-always change anything, and without online mode player UUIDs are not verified.
+always change anything, and without online mode player UUIDs are not verified, so anyone can join as
+anyone — including as an allow-listed author or an operator. What NeroQuests does for operators is keep
+count: every operator action (grant, revoke, reset, export, manual complete, allow/deny, lock/unlock,
+custom export/import/delete, editor changes) is counted by kind for the running server, and the counts —
+never who or what — are in the log and in `/neroquests reload-check`.

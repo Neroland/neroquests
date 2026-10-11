@@ -206,7 +206,8 @@ through the normal path and pays its rewards; otherwise it completes once they a
 Who may run it is decided on the server each time: a player who may author quests (Creative mode,
 permission level `editorMinOpLevel`, or the editor allow-list, unless the editor is locked — see
 [Editor permissions](Editor-Permissions.md)), or the server console. Each person may tick at most 10
-a minute. Each use is counted in the log as an admin action, never with names.
+a minute. Authors may tick **custom** quests only: on a built-in or quest-pack quest it takes a trusted
+operator (permission level 3 as a player, or the console), like `grant`. Each use is counted in the log as an admin action, never with names.
 `<quest>` is a full id (`mymod:town/statue`); suggestions list the quests that have a manual objective.
 
 ## `export`

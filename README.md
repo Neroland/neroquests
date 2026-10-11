@@ -10,16 +10,22 @@ A native, datapack-driven quest engine for the Neroland ecosystem:
 - **A built-in story line** — three chapters, 28 quests (Groundwork, Industrial Age with a market row,
   The Space Race) — that a pack can extend, rebalance or replace.
 - **Quest packs from other mods:** a mod ships its own quests as data files in its jar — no dependency
-  either way — and they appear in the book only while that mod is installed. See
+  either way — and they appear in the book only while that mod is installed. Eleven Neroland mods ship
+  a chapter (see [Sibling chapters](wiki/Sibling-Chapters.md)); to ship your own, see
   [Shipping a quest pack](wiki/Shipping-a-Quest-Pack.md).
+- **In-book quest editor:** players the server allows (Creative mode, an operator level or an
+  allow-list; lockable) build their own chapters and quests in the quest book — graph, objectives,
+  rewards within server caps, a three-step first quest. Built-in and mod-pack quests stay read-only.
+  See [Quest editor](wiki/Quest-Editor.md) and [Editor permissions](wiki/Editor-Permissions.md).
 - **Ten objective types:** `collect_item` (optionally a hand-in), `craft_item`, `kill_entity`,
   `reach_dimension`, `visit_structure`, `quest_complete`, `gate_open`, `custom_event`, `economy` and
   `manual`.
-- **Six reward types:** `item`, `xp`, `currency`, `mod_hook`, `reputation` and `gate`, each paid at most
-  once per player, with undeliverable rewards kept until the player can take them.
+- **Seven reward types:** `item`, `xp`, `currency`, `loot_table`, `mod_hook`, `reputation` and `gate`,
+  each paid at most once per player, with undeliverable rewards kept until the player can take them.
 - **Daily contracts** paid from the server economy's budget, and optional **NeroEconomy** payouts.
-- `/neroquests` operator commands, per-player and world-wide progress, and a NeroLink module for the
-  companion app.
+- `/neroquests` operator commands, per-player and world-wide progress, anonymous completion signals
+  for other mods, and a NeroLink module (schema 2) for the companion app, including claiming kept
+  rewards.
 
 ## Build targets
 

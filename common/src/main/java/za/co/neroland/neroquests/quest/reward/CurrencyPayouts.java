@@ -6,6 +6,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.storage.LevelResource;
 
 import za.co.neroland.nerolandcore.economy.CoreCurrencies;
 import za.co.neroland.nerolandcore.economy.Currency;
@@ -13,6 +14,7 @@ import za.co.neroland.nerolandcore.economy.CurrencyApi;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.compat.neroeconomy.EconomyCompat;
 import za.co.neroland.neroquests.data.OwedReward;
+import za.co.neroland.neroquests.data.PayoutJournal;
 import za.co.neroland.neroquests.data.QuestProgressState;
 
 /**
@@ -54,9 +56,26 @@ public final class CurrencyPayouts {
         QuestProgressState state = QuestProgressState.get(server);
         boolean credits = CurrencyReward.DEFAULT_CURRENCY.equals(currency);
         if (credits && EconomyCompat.active()) {
+            recoverJournal(server);
             String key = state.nextRequestKey(keyPrefix, source);
-            EconomyCompat.Payout payout = EconomyCompat.pay(server, playerId, amount, reason, key);
+            // J1: the payout and its key reach the disk before the economy is asked, and leave it once the
+            // call has returned and the outcome is recorded; a crash in between is settled on the next start
+            // with the same key (DUPLICATE = already paid), so it can never pay twice or be lost.
+            OwedReward attempt = new OwedReward(key, currency, amount, reason, source, System.currentTimeMillis(), 0);
+            PayoutJournal journal = journal(server);
+            journal.begin(playerId, attempt);
+            EconomyCompat.Payout payout;
+            try {
+                payout = EconomyCompat.pay(server, playerId, amount, reason, key);
+            } catch (RuntimeException e) {
+                // Unknown outcome: keep it owed under the same key; a retry settles it either way.
+                owe(state, playerId, online, attempt);
+                journal.end(key);
+                tell(online, Component.translatable("message.neroquests.reward_owed", Long.valueOf(amount)));
+                return false;
+            }
             if (payout.ok()) {
+                journal.end(key);
                 return true;
             }
             if (payout.permanent()) {
@@ -67,7 +86,8 @@ public final class CurrencyPayouts {
                                 + "it in the data. It is kept as owed but not retried.", amount, source);
             }
             owe(state, playerId, online, new OwedReward(key, currency, amount, reason, source,
-                    System.currentTimeMillis(), 0, payout.permanent()));
+                    attempt.createdAt(), 0, payout.permanent()));
+            journal.end(key);
             tell(online, Component.translatable(payout.translationKey()));
             tell(online, Component.translatable("message.neroquests.reward_owed", Long.valueOf(amount)));
             return false;
@@ -214,6 +234,57 @@ public final class CurrencyPayouts {
     /** The server stopped (AUD-31): the per-run count starts again with the next server. */
     public static void serverStopped() {
         droppedThisRun = 0;
+        journal = null;
+        journalFor = null;
+        recoveredFor = null;
+    }
+
+    // --- J1: the payout journal ---------------------------------------------------------------
+
+    private static PayoutJournal journal;
+    private static MinecraftServer journalFor;
+    private static MinecraftServer recoveredFor;
+
+    /** This server's payout journal ({@code <world>/data/neroquests_payout_journal.json}). */
+    public static synchronized PayoutJournal journal(MinecraftServer server) {
+        if (journalFor != server || journal == null) {
+            journalFor = server;
+            journal = new PayoutJournal(server.getWorldPath(LevelResource.ROOT).resolve("data")
+                    .resolve(PayoutJournal.FILE_NAME));
+        }
+        return journal;
+    }
+
+    /**
+     * Settle payouts a crash left in flight, once per server (first tick, or the first payout before it):
+     * each is retried with its own request key — NeroEconomy answers DUPLICATE for one it already applied,
+     * which counts as paid — and kept as owed when still refused. Counts only are logged.
+     */
+    public static void recoverJournal(MinecraftServer server) {
+        synchronized (CurrencyPayouts.class) {
+            if (recoveredFor == server) {
+                return;
+            }
+            recoveredFor = server;
+        }
+        QuestProgressState state = QuestProgressState.get(server);
+        int found = PayoutJournal.recover(journal(server), new PayoutJournal.Settler() {
+            @Override
+            public boolean retry(UUID player, OwedReward reward) {
+                return retryOne(server, player, reward) == RetryOutcome.PAID;
+            }
+
+            @Override
+            public void keep(UUID player, OwedReward reward) {
+                if (state.owed(player).stream().noneMatch(entry -> entry.requestKey().equals(reward.requestKey()))) {
+                    owe(state, player, null, reward);
+                }
+            }
+        });
+        if (found > 0) {
+            NeroQuestsCommon.LOGGER.info("[NeroQuests] Settled {} payout(s) left in flight by an unclean stop.",
+                    Integer.valueOf(found));
+        }
     }
 
     /** Add an entry to the shared bounded owed list; tells the player (and counts) when the cap drops one. */

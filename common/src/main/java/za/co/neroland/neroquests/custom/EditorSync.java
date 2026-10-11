@@ -118,13 +118,22 @@ public final class EditorSync {
             synchronized (LAST) {
                 last = LAST.get(id);
             }
-            if (last != null && last.booleanValue() != EditorPermissions.canAuthor(player)) {
+            if (flipped(last, EditorPermissions.canAuthor(player))) {
                 QuestSync.markDefinitionsDirty(id);
             }
         }
         synchronized (LAST) {
             LAST.keySet().retainAll(online);
         }
+    }
+
+    /**
+     * Whether a player's {@code can_author} changed since it was last sent (pure): a re-send is due, which
+     * drops a client that lost the right back to view mode ({@link EditGate#editModeAfterSync}). Nothing was
+     * sent yet ({@code last == null}) means the first sync carries it anyway.
+     */
+    public static boolean flipped(Boolean last, boolean now) {
+        return last != null && last.booleanValue() != now;
     }
 
     /** One player's editor state changed (allow-list). */

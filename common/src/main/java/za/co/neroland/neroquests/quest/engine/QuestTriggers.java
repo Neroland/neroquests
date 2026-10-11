@@ -174,6 +174,8 @@ public final class QuestTriggers {
             MissingContent.reset();
             RewardLog.reset();
             SeenChannels.reset();
+            // J1: payouts a crash left in flight are settled with their own request keys before anything else.
+            CurrencyPayouts.recoverJournal(server);
         }
         boolean definitionsChanged = QuestDefinitions.refreshIfReloaded(server);
         // The typo pass of a fresh load (AUD-02) runs here, where registries, tags and levels are

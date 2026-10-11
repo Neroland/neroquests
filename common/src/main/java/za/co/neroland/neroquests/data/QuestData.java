@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.data;
 import za.co.neroland.nerolandcore.data.PlayerDataErasure;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.custom.CustomQuestState;
+import za.co.neroland.neroquests.quest.reward.CurrencyPayouts;
 
 /**
  * Registers NeroQuests' player-keyed storage with Neroland Core's shared
@@ -27,6 +28,8 @@ public final class QuestData {
         PlayerDataErasure.register((server, uuid) -> {
             QuestProgressState state = QuestProgressState.get(server);
             state.forgetPlayer(uuid);
+            // J1: an in-flight payout record (normally none) goes too.
+            CurrencyPayouts.journal(server).erase(uuid);
             // The recovery backup is a second copy of the same rows: erase there too, now (AUD-16).
             state.backupNow(server);
             // D1: custom quests they authored keep existing with created_by cleared; they leave the editor

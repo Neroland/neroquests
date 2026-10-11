@@ -28,8 +28,12 @@ public final class DefinitionPager {
     /** Room kept for the page header (sync id, page index, page count, entry count — four VarInts). */
     public static final int HEADER_BYTES = 64;
 
-    /** Upper bound on pages in one sync, so a malformed packet cannot make the client allocate without limit. */
-    public static final int MAX_PAGES = 4096;
+    /**
+     * Upper bound on pages in one sync, so a malformed packet cannot make the client allocate without limit.
+     * 256 pages of 512 KiB is 128 MiB of definitions — far beyond what the content caps allow (a full
+     * custom store at its maxima is a few MiB), so a real sync never comes near it.
+     */
+    public static final int MAX_PAGES = 256;
 
     private DefinitionPager() {
     }

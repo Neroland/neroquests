@@ -230,12 +230,21 @@ public final class QuestDefinitions {
         return new Validated(valid, validChapters, List.copyOf(collected), candidates.absentPacks());
     }
 
-    private static <T> Map<Identifier, T> merged(Map<Identifier, T> base, Map<Identifier, T> extra) {
+    /**
+     * The datapack definitions plus the editor's (J1): an editor entry never replaces a datapack id and is
+     * taken only when it is a {@code custom:} id, so nothing the editor store holds can add, shadow or alter a
+     * spine or pack quest or chapter. Pure.
+     */
+    static <T> Map<Identifier, T> merged(Map<Identifier, T> base, Map<Identifier, T> extra) {
         if (extra.isEmpty()) {
             return base;
         }
         Map<Identifier, T> out = new LinkedHashMap<>(base);
-        extra.forEach(out::putIfAbsent);
+        extra.forEach((id, value) -> {
+            if (QuestSource.of(id) == QuestSource.CUSTOM) {
+                out.putIfAbsent(id, value);
+            }
+        });
         return out;
     }
 

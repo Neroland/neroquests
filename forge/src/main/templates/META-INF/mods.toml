@@ -8,7 +8,7 @@ modId = "${mod_id}"
 version = "${mod_version}"
 displayName = "${mod_name}"
 authors = "${mod_authors}"
-displayURL = "https://neroland.co.za"
+displayURL = "https://nerolandmc.net"
 description = '''
 Data-driven quests for the Neroland ecosystem: a quest book, a three-chapter story line, objectives and rewards written as datapack JSON, daily contracts, and optional NeroEconomy payouts. Requires Neroland Core.
 '''

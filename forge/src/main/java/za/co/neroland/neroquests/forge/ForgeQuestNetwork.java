@@ -56,10 +56,19 @@ public final class ForgeQuestNetwork implements NetworkPlatform {
         });
     }
 
+    /**
+     * The flow is bidirectional, so Forge itself does not stop a modified client from sending a
+     * <em>clientbound</em> payload to the server. A packet that arrives with a sender came from a
+     * client and is dropped here: clientbound handlers only ever run for packets the server sent.
+     */
     private static <T extends CustomPacketPayload> void registerClientbound(
             PayloadFlow<RegistryFriendlyByteBuf, CustomPacketPayload> play, QuestNetwork.Clientbound<T> cb) {
-        play.addMain(cb.type(), registryCodec(cb.codec()),
-                (payload, context) -> cb.handler().accept(payload));
+        play.addMain(cb.type(), registryCodec(cb.codec()), (payload, context) -> {
+            if (context.getSender() != null) {
+                return;
+            }
+            cb.handler().accept(payload);
+        });
     }
 
     @SuppressWarnings("unchecked")

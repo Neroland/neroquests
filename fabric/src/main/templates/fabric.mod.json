@@ -5,7 +5,7 @@
   "name": "${mod_name}",
   "description": "Data-driven quests for the Neroland ecosystem: a quest book, a three-chapter story line, objectives and rewards written as datapack JSON, daily contracts, and optional NeroEconomy payouts. Requires Neroland Core.",
   "contact": {
-    "homepage": "https://neroland.co.za",
+    "homepage": "https://nerolandmc.net",
     "sources": "https://github.com/Neroland/neroquests",
     "issues": "https://github.com/Neroland/neroquests/issues"
   },

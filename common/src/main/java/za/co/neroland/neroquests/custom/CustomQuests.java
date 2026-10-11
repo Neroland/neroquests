@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import com.google.gson.JsonObject;
 
@@ -76,8 +77,8 @@ import za.co.neroland.neroquests.quest.reward.XpReward;
  */
 public final class CustomQuests {
 
-    private static final RateLimiter BURST = new RateLimiter(20, 1_000L);
-    private static final RateLimiter MINUTE = new RateLimiter(200, 60_000L);
+    private static final RateLimiter BURST = EditGate.editorBurst();
+    private static final RateLimiter MINUTE = EditGate.editorMinute();
 
     /** Most prerequisites one custom quest may list. */
     public static final int MAX_PREREQUISITES = 16;
@@ -263,7 +264,7 @@ public final class CustomQuests {
                 return Change.of(bad.get());
             }
             List<ObjectiveSpec> cleaned = new ArrayList<>();
-            bad = checkObjectives(actor.server(), objectives, cleaned);
+            bad = checkObjectives(actor.server(), gateView(actor), objectives, cleaned);
             if (bad.isPresent()) {
                 return Change.of(bad.get());
             }
@@ -368,11 +369,13 @@ public final class CustomQuests {
                 return Change.of(EditResult.error(EditResult.BAD_REQUEST));
             }
             Map<Identifier, Quest> loaded = QuestDefinitions.questsForServer(actor.server());
+            Predicate<Identifier> gateOpen = gateView(actor);
             for (Identifier prerequisite : unique) {
                 if (prerequisite.equals(questId)) {
                     return Change.of(EditResult.error(EditResult.SELF_PREREQUISITE, questId.toString()));
                 }
-                if (!loaded.containsKey(prerequisite) && preview.quest(prerequisite).isEmpty()) {
+                // J1: a quest hidden from this author answers exactly like one that does not exist.
+                if (!AuthorVisibility.known(prerequisite, loaded, id -> preview.quest(id).isPresent(), gateOpen)) {
                     return Change.of(EditResult.error(EditResult.PREREQUISITE_UNKNOWN, prerequisite.toString()));
                 }
             }
@@ -396,7 +399,7 @@ public final class CustomQuests {
                 return Change.of(EditResult.error(EditResult.UNKNOWN_QUEST, String.valueOf(questId)));
             }
             List<ObjectiveSpec> cleaned = new ArrayList<>();
-            Optional<EditResult> bad = checkObjectives(actor.server(), objectives, cleaned);
+            Optional<EditResult> bad = checkObjectives(actor.server(), gateView(actor), objectives, cleaned);
             if (bad.isPresent()) {
                 return Change.of(bad.get());
             }
@@ -531,15 +534,9 @@ public final class CustomQuests {
         if (server == null) {
             return EditResult.error(EditResult.DENIED);
         }
-        Optional<EditResult> denied = authorise(actor);
+        Optional<EditResult> denied = authorise(actor, subject);
         if (denied.isPresent()) {
             return denied.get();
-        }
-        if (subject != null) {
-            Optional<String> locked = QuestSources.lockKey(subject);
-            if (locked.isPresent()) {
-                return EditResult.error(locked.get(), subject.toString());
-            }
         }
         CustomQuestState state = CustomQuestState.get(server);
         CustomQuestState preview = state.copy();
@@ -568,20 +565,33 @@ public final class CustomQuests {
         QuestSync.markAllProgressDirty();
     }
 
-    private static Optional<EditResult> authorise(Actor actor) {
-        if (actor.admin()) {
+    /**
+     * Authorisation (re-derived now from the server-side player), the rate limit, then immutability of the
+     * subject — in that order, through the pure {@link EditGate}.
+     */
+    private static Optional<EditResult> authorise(Actor actor, Identifier subject) {
+        ServerPlayer player = actor.player();
+        boolean authorised = !actor.admin() && player != null && EditorPermissions.canAuthor(player);
+        Object key = player == null ? null : player.getUUID();
+        Optional<String> refusal = EditGate.refusal(actor.admin(), authorised, key, System.currentTimeMillis(),
+                BURST, MINUTE, subject);
+        if (refusal.isEmpty()) {
             return Optional.empty();
         }
-        ServerPlayer player = actor.player();
-        if (player == null || !EditorPermissions.canAuthor(player)) {
-            return Optional.of(EditResult.error(EditResult.DENIED));
+        String reason = refusal.get();
+        if (reason.equals(EditResult.DENIED) || reason.equals(EditResult.RATE_LIMITED)) {
+            return Optional.of(EditResult.error(reason));
         }
-        long now = System.currentTimeMillis();
-        UUID key = player.getUUID();
-        if (!BURST.tryAcquire(key, now) || !MINUTE.tryAcquire(key, now)) {
-            return Optional.of(EditResult.error(EditResult.RATE_LIMITED));
+        return Optional.of(EditResult.error(reason, subject.toString()));
+    }
+
+    /** The open gates of the acting player ({@link AuthorVisibility#EVERYTHING} for the console). */
+    private static Predicate<Identifier> gateView(Actor actor) {
+        if (actor.player() == null) {
+            return AuthorVisibility.EVERYTHING;
         }
-        return Optional.empty();
+        Set<Identifier> open = QuestEngine.openGatesFor(actor.player());
+        return open::contains;
     }
 
     /**
@@ -647,6 +657,15 @@ public final class CustomQuests {
      */
     static Optional<EditResult> checkObjectives(MinecraftServer server, List<ObjectiveSpec> objectives,
                                                 List<ObjectiveSpec> out) {
+        return checkObjectives(server, AuthorVisibility.EVERYTHING, objectives, out);
+    }
+
+    /**
+     * {@link #checkObjectives(MinecraftServer, List, List)} as seen by one author: a {@code quest_complete}
+     * target hidden from them is refused like an unknown id (J1).
+     */
+    static Optional<EditResult> checkObjectives(MinecraftServer server, Predicate<Identifier> gateOpen,
+                                                List<ObjectiveSpec> objectives, List<ObjectiveSpec> out) {
         if (objectives == null || objectives.isEmpty()) {
             return Optional.of(EditResult.error(EditResult.OBJECTIVE_NONE));
         }
@@ -680,7 +699,7 @@ public final class CustomQuests {
         if (shape.isPresent()) {
             return Optional.of(EditResult.error(EditResult.BAD_REQUEST));
         }
-        return CustomContentRules.objectives(out, new ServerContentLookup(server));
+        return CustomContentRules.objectives(out, new ServerContentLookup(server, gateOpen));
     }
 
     /** The reward rules with translatable keys (types, count, caps, ids). */

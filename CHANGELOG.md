@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0-beta.1] - 2026-10-11
 
-Optional NeroEconomy integration: budgeted quest payouts, daily contracts and an economy objective.
-NeroEconomy stays optional — NeroQuests builds, loads and runs without it.
+Quest packs from other Neroland mods, an in-book quest editor for players the server trusts, a
+reward-integrity pass (every reward pays at most once and is never lost), companion-app link schema 2,
+and optional NeroEconomy integration: budgeted quest payouts, daily contracts and an economy objective.
+NeroEconomy stays optional — NeroQuests builds, loads and runs without it. See **Migration** before
+updating a world.
 
 ### Added
 
@@ -110,8 +113,32 @@ NeroEconomy stays optional — NeroQuests builds, loads and runs without it.
   the editor lock, allow-list size, escrow mode and custom counts.
 - **Data export** now includes the custom quests a player authored and their allow-list membership;
   **erasure** clears `created_by` on those quests (they stay) and removes them from the allow-list.
+- **In-book quest editor.** Players the server allows to author see an **Edit** button in the quest
+  book (shown only when the definitions sync says `can_author`; the book drops back to reading mode with
+  a message if that changes while editing). Every change is a serverbound request that the server
+  re-authorises, rate-limits and validates through the custom-quest API, answered with a short message
+  in the book; the client decides nothing.
+- **Chapter column for editing:** NeroQuests' chapters first, then mod packs grouped by mod, then custom
+  chapters by their order. In edit mode a padlock (tooltip "Provided by <mod name> — cannot be edited")
+  marks read-only chapters and a pencil marks custom ones; a badge marks chapters of mods that are not
+  installed. Custom chapters can be added, renamed, moved up/down and deleted (with confirmation).
+- **Graph editing** on custom chapters: drag a quest to place it on the grid, drag from a quest's edge
+  handle onto another quest to add a requirement (cycles refused by the server), right-click a link to
+  remove it; read-only chapters refuse drags with a short message.
+- **Quest panel** with *Details* (title, description, icon with a searchable item picker or the held
+  item, repeatable + cooldown, requirements across chapters), *Objectives* (a small form per type: item
+  or tag, creature or tag, dimension, structure, gate, event channel seen this session, quest, manual
+  label; counts 1–1,000,000), *Rewards* (items, loot table, experience, credits, with running totals
+  against the server's caps and the escrow notice and deposit field when escrow is on) and *Preview*.
+- **Three-step first quest:** "Name it → Add an objective → Add a reward" with inline hints; advanced
+  options (more objectives, repeatable, a requirement, escrow copies) behind **More**.
+- The quest book's layout now adapts to small screens (GUI scale 1–4 at 854×480): the panel shrinks to
+  fit and the chapter column turns icon-only, with titles in tooltips. On larger screens the reading
+  view is unchanged.
+- Custom quests show who wrote them only as "you" or "another player".
 - **Wiki:** new [Editor permissions](wiki/Editor-Permissions.md) (admins) and
-  [Quest editor](wiki/Quest-Editor.md) (players) pages.
+  [Quest editor](wiki/Quest-Editor.md) (players) pages; the player page walks through the editor. New
+  [Sibling chapters](wiki/Sibling-Chapters.md) page lists the chapter each Neroland mod adds to the book.
 
 ### Changed
 
@@ -150,6 +177,34 @@ NeroEconomy stays optional — NeroQuests builds, loads and runs without it.
   `nerocolonies:colony_chronicle/breathing_room`, `full_larder` and `settled_ground`. Completed quests stay
   completed and paid; running it again changes nothing. Without NeroColonies installed the moved rows
   are kept like any other row for a quest that is not loaded.
+- **Built-in story line 30 → 28 quests.** The three quests above now ship in NeroColonies' own quest pack
+  (*Colony Chronicle*) and appear only where NeroColonies is installed; *What This Book Is* is new. A
+  datapack that overrode or depended on `neroquests:space_race/breathing_room`, `full_larder` or
+  `settled_ground` must use the `nerocolonies:colony_chronicle/…` ids.
+- **Paid ledger.** Worlds saved by 0.3.0-beta.1 or earlier have no record of which rewards were paid; on
+  first load every completed quest is entered as paid (player and world-level), so nothing pays again
+  after updating. Each stored progress row is also stamped with its quest's current objective list on
+  the first evaluation (existing counters are kept).
+- **Owed-reward queue.** Credit rewards kept as owed by earlier 0.4.0 test builds keep their entries; an
+  entry without a request key is given one stable key the first time it is retried. Item and experience rewards that could
+  not be delivered are now kept in the same queue (at most 64 entries per player) instead of being
+  dropped or skipped.
+- **Companion-app link schema 1 → 2.** The quest module reports `schema_version` 2. The schema-1
+  fields are still sent in this release (except title/description keys on custom quests, which have
+  none) so older companion apps keep working; they will be removed in a later release, so apps should move to the schema-2 fields (see [Link module](wiki/Link-Module.md)).
+- **New world file** `neroquests:custom_quests` holds custom quests, the editor allow-list and the editor
+  lock (see `PRIVACY.md`).
+- **New settings** in `config/neroquests.properties`, all added with their defaults on first start; the
+  defaults keep 0.3.0 behaviour except where noted:
+  - `degradedCompletionsPay` = `false` — quests completed through `missingModObjectivePolicy=autocomplete`
+    no longer pay unless set to `true`;
+  - `owedItemsDropWhenFull` = `false` — item rewards that do not fit are kept instead of dropped;
+  - `dailyContractsEnabled` = `true`, `dailyContractsPerDay` = `3` (1–10);
+  - `editorRequiresCreative` = `true`, `editorMinOpLevel` = `2` (1–4);
+  - `customQuestMaxTotal` = `500` (0–5000), `customChapterMax` = `20` (0–200);
+  - `customRewardMaxStacks` = `9` (0–9), `customRewardMaxXp` = `500` (0–100000),
+    `customRewardMaxCurrency` = `1000` (0–1000000);
+  - `customRewardsEscrowed` = `false`.
 
 ### Fixed (audit)
 
@@ -252,11 +307,28 @@ NeroEconomy stays optional — NeroQuests builds, loads and runs without it.
   and Java 25 (it said Java 21 and left Core uncapped), and all three manifests carry a real
   description, the homepage and the issue tracker.
 - **Documentation brought up to date.** The README and the wiki home page describe the current beta
-  (30 built-in quests, eight objective types, five reward types, nine loader × version builds,
+  (28 built-in quests, ten objective types, seven reward types, nine loader × version builds,
   Neroland Core 1.15.0) instead of an early skeleton; the Core notes cover the optional NeroEconomy
   dependency and Core's saved-data recovery; the store pages list Minecraft 26.3 and describe the
   stored data accurately (they promised a per-player tracking opt-out that does not exist); the
   `quest_complete` objective page states the scope rule.
+- **A crash can no longer pay a credit reward twice.** Each NeroEconomy payout is written, with its
+  request key, to a small journal in the world's `data/` folder and forced to disk before the economy is
+  asked, and removed once the call has returned. A payout left there by an unclean stop is retried on the
+  next start with the same key — the economy answers "already applied" if it went through — or kept as
+  owed when still refused.
+
+### Security
+
+- **Hidden quests cannot be probed from the editor.** Naming a quest that is hidden from you (behind a
+  closed visibility gate) as a requirement or a `quest_complete` target is refused with the same message
+  as an id that does not exist.
+- **`manual complete` no longer changes built-in or quest-pack progress for authors.** A quest author may
+  tick `manual` objectives of custom quests only; on built-in and quest-pack quests it takes a trusted
+  operator (level 3 or the console), counted like `grant`.
+- **The custom-quest store holds custom ids only.** Editor content is merged into the quest list only as
+  `custom:` ids and never replaces a built-in or quest-pack definition, and a save file edited by hand to
+  carry another id does not load it.
 
 ### Build
 

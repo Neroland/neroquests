@@ -6,7 +6,7 @@
 
 - **NeroQuests** — part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
   A **native, datapack-driven quest engine**: quest/chapter definitions loaded from datapacks, an
-  objective + trigger engine, rewards (items, XP, Core gates, currency, reputation), per-player and
+  objective + trigger engine, rewards (items, XP, loot tables, Core gates, currency, reputation, mod hooks), per-player and
   server-scope progress storage, server→client sync, the in-game quest book GUI, the `/neroquests`
   operator commands, and a NeroLink link module exposing quest data to companion clients. It ships a
   **built-in three-chapter story line (28 quests) and eight daily contracts** as datapack JSON under
@@ -21,6 +21,44 @@
   `compileOnly` dependency.
 - Targets **MC 26.1.2, 26.2 AND 26.3** on **NeoForge, MinecraftForge/Forge, and Fabric** → the **"9 cells"**.
   **Java 25.** Mappings = official Mojang names (26.x ships de-obfuscated; no Parchment).
+
+## Quest sources
+
+- Every quest and chapter has a `QuestSource` resolved from its namespace (`Quest.source()`):
+  **SPINE** = `neroquests:` (the built-in story line), **PACK** = any other datapack namespace (a sibling
+  mod's own pack or a server datapack), **CUSTOM** = `custom:` (made in game, stored in
+  `custom/CustomQuestState`, never read from datapacks — a datapack file in `custom` is dropped).
+- SPINE and PACK definitions are **read-only at runtime**. Every mutation path asks
+  `QuestSources.requireMutable(id)` and refuses spine/pack ids with a lock message; custom content is
+  merged into `QuestDefinitions` only as `custom:` ids and never replaces another definition.
+- Spine and pack quests may never depend on a custom quest (`CustomRules.referencesCustom`).
+
+## Editor lock and permissions
+
+- `custom/CustomQuests` is the **single writer** of custom content (also used by the network handlers in
+  `network/EditorRequests` and the `/neroquests custom` commands). Every request goes through
+  `custom/EditGate`: re-derive `EditorPermissions.canAuthor` now → rate limit (20/s, 200/min per player)
+  → spine/pack lock → validate → `QuestDefinitions.preview` → apply → re-sync. The client decides nothing.
+- Who may author: Creative mode (`editorRequiresCreative`), permission level `editorMinOpLevel`, or the
+  editor allow-list; never spectators or dead players. `/neroquests editor lock` closes the editor to
+  everyone below level 4. The definitions sync carries `can_author`, re-sent whenever it flips.
+- Author-written text goes through `custom/TextSanitizer`, is rendered only with `Component.literal`
+  (`quest/QuestText`), and must **never** be logged, put in telemetry or used as a translation key.
+- `created_by` is the author's game UUID: exported with the player's data and cleared (quest kept) on
+  erasure. Keep it out of logs, link payloads and datapack exports.
+
+## Quest-pack contract
+
+- The public contract is `wiki/Quest-Format.md` + `wiki/Shipping-a-Quest-Pack.md`; change them with the
+  code. Rules live in `quest/PackRules` and `QuestDefinitions.validate`: no `gate`/`reputation` rewards
+  outside `neroquests`, server scope only with a same-namespace chapter that sets
+  `allow_server_scope`, prerequisites and `quest_complete` only within the own namespace or the spine,
+  translation keys (not literal text) for titles/descriptions, `mod_hook` gates `<own ns>:hook/<id>`.
+  A broken file is **dropped with a reason** (shown by `/neroquests reload-check`), never a crash.
+- A pack whose mod is not installed loads nothing unless its chapter sets `show_when_absent` (badge,
+  never completable). Any decode error drops the whole file (`QuestDefinitions.decodeStrict`).
+- Sibling packs are validated by `pack/SiblingPacksTest` (reads `../<repo>/common/src/main/resources`,
+  skipped when a sibling is not checked out) through `pack/QuestPackValidator`.
 
 ## Working rules
 

@@ -1,5 +1,7 @@
 package za.co.neroland.neroquests.custom;
 
+import java.util.function.Predicate;
+
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -21,7 +23,12 @@ import za.co.neroland.neroquests.quest.reward.LootTableReward;
  * {@link ContentLookup} against the running server's registries, tags, levels, Core gate definitions,
  * the session's seen-channel set and the loaded quest definitions. Server thread only.
  */
-public record ServerContentLookup(MinecraftServer server) implements ContentLookup {
+public record ServerContentLookup(MinecraftServer server, Predicate<Identifier> gateOpen) implements ContentLookup {
+
+    /** A lookup that sees every quest (admin paths without an author). */
+    public ServerContentLookup(MinecraftServer server) {
+        this(server, AuthorVisibility.EVERYTHING);
+    }
 
     @Override
     public boolean item(Identifier id) {
@@ -78,7 +85,9 @@ public record ServerContentLookup(MinecraftServer server) implements ContentLook
 
     @Override
     public boolean quest(Identifier id) {
-        return QuestDefinitions.questsForServer(server).containsKey(id);
+        // J1: a quest hidden from the author is reported as unknown, like an id that does not exist.
+        return AuthorVisibility.known(id, QuestDefinitions.questsForServer(server), any -> false,
+                gateOpen == null ? AuthorVisibility.EVERYTHING : gateOpen);
     }
 
     @Override

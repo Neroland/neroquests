@@ -78,6 +78,10 @@ tasks.named('test', Test) {
     enabled = (mc == '26.2')
     // The bundled-content test reads the shared resources by file path (machine-independent: resolved here).
     systemProperty 'neroquests.commonResources', rootProject.ext.commonResources
+    // K3: the microbenchmark (custom/PerformanceBench) runs only with -PneroquestsBench; never in CI.
+    if (project.hasProperty('neroquestsBench')) {
+        systemProperty 'neroquests.bench', 'true'
+    }
     testLogging {
         events 'failed'
         exceptionFormat 'full'

@@ -3,6 +3,21 @@
 NeroQuests is designed to comply with POPIA and GDPR. This document describes what
 player data the mod stores and how players and server admins control it.
 
+## Every store at a glance
+
+The only player identifier NeroQuests ever stores is the player's existing Minecraft game UUID — never
+a name, IP address, chat line or coordinates.
+
+| Store | Where | Purpose | Player identifier | Retention | Export | Erasure |
+| --- | --- | --- | --- | --- | --- | --- |
+| Quest progress (counters, completions, paid ledger, revoke markers, repeat stamps, daily contracts) | world file `neroquests:quest_progress` + Core backup | run quests; pay each reward once | game UUID | inactivity sweep / Core purge | yes | yes |
+| Owed and kept rewards | inside quest progress | hand over rewards that could not be delivered | game UUID | until delivered, or with the player's data | yes | yes |
+| Payout journal | `data/neroquests_payout_journal.json` | crash-safe credit payouts | game UUID | seconds (removed when the economy answers) | not needed (transient) | yes |
+| Custom quests (`created_by`) | world file `neroquests:custom_quests` + backup | run player-made quests; show "you" to the author | game UUID of the author | until the quest is deleted | yes (own quests) | `created_by` cleared, quest kept |
+| Editor allow-list and lock | inside the custom-quest file | decide who may author | game UUID | until removed by an operator | yes (on the list or not) | yes |
+| World completion counts | inside quest progress | completion signals for other mods | none | kept | — | — |
+| Seen event channels, rate-limit buckets, seen chapters, post-erasure hold | memory only | editor channel picker, flood limits, app alerts, erasure safety | channels: none; others: game UUID | until the player leaves or the server stops | — | never saved |
+
 ## What is stored
 
 Quest progress only, keyed by the player's existing Minecraft game UUID:
@@ -42,6 +57,12 @@ player id or name with a payment. Trade events carry only your own side of a tra
 party); NeroQuests counts them against your quest progress and keeps nothing else. What the economy
 itself records about these payouts is described in that mod's own privacy document.
 
+While a payout is being made, NeroQuests writes it — your game UUID, the amount, reason code, source
+quest or contract id and request key — to a small journal file (`neroquests_payout_journal.json` in the
+world's `data/` folder) and deletes the entry as soon as the economy has answered. It exists so a server
+crash can neither pay a reward twice nor lose it: an entry left behind by a crash is settled on the next
+start and then removed. The file is normally absent or empty, and an erasure removes your entries from it.
+
 Owed rewards, daily-contract records, the paid ledger and revoked markers are part of your quest
 data: they are included in the export below and removed by the same erasure and retention controls.
 After an erasure the server additionally remembers, in memory only and until you next join, that
@@ -65,7 +86,8 @@ file). It holds:
 Purpose: running the quests the server's players made, and deciding who may make them. Retention: until
 the quest is deleted (by an author or an operator) or the player is removed from the list; the quests are
 world content, so the inactivity sweep does not delete them. Author-written text is shown only as plain
-text, is never written to the server log and is never included in crash reports. An export of custom
+text, is never written to the server log, is never included in crash reports and is sent nowhere
+except to the players (and their paired companion app) who can see that quest. An export of custom
 quests as a datapack (`/neroquests custom export`) contains no `created_by` and nothing else about any
 player.
 
@@ -95,10 +117,11 @@ Quest progress for inactive players is purged automatically, two ways:
 - **Core-driven** — when Core's `purge-inactive` runs, the erasure hook above clears
   the named players' quest progress along with every other Nero mod's data.
 - **NeroQuests' own sweep** — set `questDataRetentionDays` in `neroquests.properties`
-  to a number of days and NeroQuests prunes every player record whose progress has not
-  changed within that window. The sweep runs once per server session, the first time
-  quest progress is touched, and logs only *how many* records were pruned — never who.
-  `0` (the default) disables the sweep and follows Core's `dataRetentionDays` only.
+  to a number of days and NeroQuests prunes every player record that has not been active
+  within that window (joining the server counts as activity; online players are never pruned).
+  The sweep runs when quest progress is first touched after start-up and then once per in-game
+  day, and logs only *how many* records were pruned — never who. `0` (the default) disables
+  the sweep and follows Core's `dataRetentionDays` only.
 
 Each player row carries a single "last updated" timestamp for exactly this purpose;
 shared server-wide quest progress carries no player identifiers and is never pruned. Custom quests and
@@ -151,6 +174,16 @@ so once your data is erased (see above) there is nothing left for the link to re
 
 Details: [`wiki/Link-Module.md`](wiki/Link-Module.md).
 
+## Held in memory only
+
+- **Seen event channels:** the ids of `custom_event` channels other mods fired this session (at most
+  256), so the editor can offer them. Channel ids only — never who fired them. Cleared when the server
+  stops.
+- **Editor and `manual complete` rate limits:** a per-player counter keyed by game UUID, never logged
+  or saved, dropped when idle and when the server stops.
+- **Seen chapters** for the "A new chapter appeared" alert and the **post-erasure hold** described
+  above: in memory while you are online, never saved.
+
 ## Telemetry
 
 NeroQuests ships anonymous crash reporting via **Sentry** (EU ingest servers), matching
@@ -196,3 +229,9 @@ required by CurseForge moderation policy:
 > via Sentry (EU servers) so crashes can be fixed. On by default — opt out any time by setting
 > `telemetryEnabled = false` in `config/neroquests.properties`. Full details:
 > [PRIVACY.md](https://github.com/Neroland/neroquests/blob/main/PRIVACY.md).
+
+## Contact
+
+Questions, access or erasure requests that a server operator cannot handle, and privacy concerns about
+NeroQuests itself: **<info@neroland.co.za>**. Your server's operator is responsible for the data on their
+server; NeroQuests' developers never receive quest data.

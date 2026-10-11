@@ -3,14 +3,15 @@
 Player- and contributor-facing documentation for **NeroQuests**, part of the Neroland
 sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
-> **Status:** beta (version `0.4.0-beta.1`). The quest engine,
-> rewards, sync, the quest book and the built-in three-chapter story line are in; more is still
-> landing, so pages will grow as features arrive. Keep this wiki updated alongside code changes
+> **Status:** beta (version `0.4.0-beta.1`). The quest engine, rewards, sync, the quest book, the
+> built-in three-chapter story line, quest packs from other mods and the in-book quest editor are in;
+> pages grow as features arrive. Keep this wiki updated alongside code changes
 > (see [`../AGENTS.md`](../AGENTS.md) / [`../CLAUDE.md`](../CLAUDE.md)).
 
 ## Contents
 
 - [Story chapters](Story-Chapters.md) — the built-in quest line: Groundwork, Industrial Age, The Space Race
+- [Sibling chapters](Sibling-Chapters.md) — the chapter each Neroland mod adds to the book while it is installed
 - [Quest book](Quest-Book.md) — the in-game book: opening it, reading the graph, and the state legend
 - [Commands](Commands.md) — the `/neroquests` operator tree: grant, revoke, reset, list, reload-check, export, manual complete, editor, custom
 - [Quest editor](Quest-Editor.md) — making your own quests in game: what you can build and what to expect

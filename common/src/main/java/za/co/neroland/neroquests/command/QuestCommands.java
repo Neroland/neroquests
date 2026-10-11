@@ -38,6 +38,7 @@ import za.co.neroland.neroquests.custom.CustomPackIO;
 import za.co.neroland.neroquests.custom.CustomQuestState;
 import za.co.neroland.neroquests.custom.CustomQuests;
 import za.co.neroland.neroquests.custom.EditResult;
+import za.co.neroland.neroquests.custom.EditGate;
 import za.co.neroland.neroquests.custom.RateLimiter;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.data.QuestProgressState;
@@ -148,7 +149,7 @@ public final class QuestCommands {
     }
 
     /** Manual completions per invoker: 10 a minute (§13). */
-    private static final RateLimiter MANUAL_LIMIT = new RateLimiter(10, 60_000L);
+    private static final RateLimiter MANUAL_LIMIT = EditGate.manualLimiter();
 
     /** How long a {@code custom delete} waits for its {@code confirm}. */
     static final long DELETE_CONFIRM_MILLIS = 30_000L;
@@ -453,6 +454,12 @@ public final class QuestCommands {
             return 0;
         }
         String questId = quest.id().toString();
+        boolean author = source.getEntity() instanceof ServerPlayer invoker && EditorPermissions.canAuthor(invoker);
+        if (!EditGate.mayTickManual(quest.source(), author, trustedAdmin(source))) {
+            // J1: spine and pack progress is changed by hand only by trusted operators (counted below).
+            source.sendFailure(Component.translatable("command.neroquests.manual.denied"));
+            return 0;
+        }
         if (!hasManualObjective(quest)) {
             source.sendFailure(Component.translatable("command.neroquests.manual.none", questId));
             return 0;
