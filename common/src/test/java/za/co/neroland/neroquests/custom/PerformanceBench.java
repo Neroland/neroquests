@@ -38,6 +38,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.Identifier;
 
 import za.co.neroland.neroquests.data.QuestProgress;
+import za.co.neroland.neroquests.network.EditorIntake;
 import za.co.neroland.neroquests.network.EditorPayloads;
 import za.co.neroland.neroquests.network.QuestDefinitionsPayload;
 import za.co.neroland.neroquests.quest.Chapter;
@@ -374,23 +375,32 @@ class PerformanceBench {
         int seconds = 120;
         for (int warm = 0; warm < 2; warm++) {
             flood(players, quest, wire, perSecond, 2, new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()},
-                    new long[4], false);
+                    new long[4], LIMITER_FIRST);
         }
         long[] counts = new long[4];
         RateLimiter[] limiters = {EditGate.editorBurst(), EditGate.editorMinute()};
         long start = System.nanoTime();
-        flood(players, quest, wire, perSecond, seconds, limiters, counts, false);
+        flood(players, quest, wire, perSecond, seconds, limiters, counts, LIMITER_FIRST);
         long elapsed = System.nanoTime() - start;
-        // As shipped, EditorRequests decodes the JSON on the server thread before CustomQuests asks EditGate,
-        // so a refused request still pays the decode: measure that order too (20 simulated s).
+        // Before J2, EditorRequests decoded the JSON on the server thread before CustomQuests asked EditGate,
+        // so a refused request still paid the decode: measure that order too (20 simulated s).
         int shippedSeconds = 20;
         flood(players, quest, wire, perSecond, 1, new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()},
-                new long[4], true);
+                new long[4], DECODE_FIRST);
         long shippedStart = System.nanoTime();
         flood(players, quest, wire, perSecond, shippedSeconds,
-                new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()}, new long[4], true);
+                new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()}, new long[4], DECODE_FIRST);
         long shippedElapsed = System.nanoTime() - shippedStart;
         long shippedTotal = (long) PLAYERS * perSecond * shippedSeconds;
+        // J2 (RT-02) as shipped now: inbound cap (40/s per player, excess dropped unanswered), then permission +
+        // limiter, then the global slot, and only then the decode; refusals answered at most twice a second.
+        long[] j2Counts = new long[6];
+        flood(players, quest, wire, perSecond, 1, new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()},
+                new long[6], SHIPPED);
+        long j2Start = System.nanoTime();
+        flood(players, quest, wire, perSecond, seconds,
+                new RateLimiter[] {EditGate.editorBurst(), EditGate.editorMinute()}, j2Counts, SHIPPED);
+        long j2Elapsed = System.nanoTime() - j2Start;
         long total = (long) PLAYERS * perSecond * seconds;
         out.println("(d) Editor packets under the rate limit (decode set_objectives with 12 objectives, EditGate,");
         out.println("    strict objective decode + CustomRules for accepted requests only)");
@@ -401,15 +411,26 @@ class PerformanceBench {
         out.printf(Locale.ROOT, "    %.1f ms wall in total = %.0f ns per request; %.2f ms of work per simulated second%n",
                 elapsed / 1e6, (double) elapsed / total, elapsed / 1e6 / seconds);
         out.printf(Locale.ROOT, "    packet %d bytes on the wire (checksum %d)%n", wire.length, Long.valueOf(counts[2] & 0xff));
-        out.printf(Locale.ROOT, "    shipped order (JSON decoded before the limiter, every request): %.0f ns per request; "
+        out.printf(Locale.ROOT, "    pre-J2 order (JSON decoded before the limiter, every request): %.0f ns per request; "
                 + "%.1f ms of server-thread work per simulated second at 100,000 requests/s%n",
                 (double) shippedElapsed / shippedTotal, shippedElapsed / 1e6 / shippedSeconds);
+        out.printf(Locale.ROOT, "    J2 shipped order (inbound cap 40/s, then permission + limiter, global slot, decode): "
+                + "%.0f ns per request; %.2f ms of work per simulated second at 100,000 requests/s%n",
+                (double) j2Elapsed / total, j2Elapsed / 1e6 / seconds);
+        out.printf(Locale.ROOT, "    J2: dropped at the inbound cap %,d, refused after it %,d (answered %,d), decoded %,d%n",
+                j2Counts[4], j2Counts[1], j2Counts[5], j2Counts[0]);
         out.println("    The mutation itself (QuestDefinitions.preview, save, re-sync) needs a server and is not timed here;");
         out.println("    the limiter caps it at 200 per player per minute.");
     }
 
+    private static final int LIMITER_FIRST = 0;
+    private static final int DECODE_FIRST = 1;
+    private static final int SHIPPED = 2;
+
     private static void flood(List<UUID> players, Identifier subject, byte[] wire, int perSecond, int seconds,
-                              RateLimiter[] limiters, long[] counts, boolean decodeFirst) {
+                              RateLimiter[] limiters, long[] counts, int mode) {
+        boolean decodeFirst = mode == DECODE_FIRST;
+        EditorIntake intake = new EditorIntake();
         long now = 1_760_000_000_000L;
         long step = 1000L / perSecond == 0 ? 1 : 1000L / perSecond;
         for (int s = 0; s < seconds; s++) {
@@ -419,10 +440,20 @@ class PerformanceBench {
                     ByteBuf raw = Unpooled.wrappedBuffer(wire);
                     EditorPayloads.SetObjectives packet = EditorPayloads.SetObjectives.STREAM_CODEC
                             .decode(new FriendlyByteBuf(raw));
+                    if (mode == SHIPPED && !intake.inbound(player, at)) {
+                        counts[4]++;
+                        continue;
+                    }
                     List<ObjectiveSpec> early = decodeFirst ? ObjectiveSpec.CODEC.listOf()
                             .parse(JsonOps.INSTANCE, JsonParser.parseString(packet.objectivesJson())).getOrThrow() : null;
                     Optional<String> refusal = EditGate.refusal(false, true, player, at, limiters[0], limiters[1],
                             packet.quest());
+                    if (mode == SHIPPED && refusal.isEmpty() && !intake.globalSlot(at)) {
+                        refusal = Optional.of("rate_limited");
+                    }
+                    if (mode == SHIPPED && refusal.isPresent() && intake.replyToRefusal(player, at)) {
+                        counts[5]++;
+                    }
                     if (refusal.isEmpty()) {
                         List<ObjectiveSpec> parsed = early != null ? early : ObjectiveSpec.CODEC.listOf()
                                 .parse(JsonOps.INSTANCE, JsonParser.parseString(packet.objectivesJson())).getOrThrow();

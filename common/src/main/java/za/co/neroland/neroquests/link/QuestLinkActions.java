@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -60,6 +63,9 @@ public final class QuestLinkActions implements LinkActionHandler {
 
     private static final List<String> ACTIONS = List.of(QuestLinkModule.ACTION_CLAIM_REWARD);
 
+    /** How long an off-thread claim waits for the server thread. */
+    private static final long CLAIM_TIMEOUT_SECONDS = 10L;
+
     /** Sent back when nothing (matching) is owed any more. */
     private static final String NOTHING_OWED_NOTE = "nothing is owed; rewards are granted automatically on completion";
 
@@ -101,7 +107,21 @@ public final class QuestLinkActions implements LinkActionHandler {
                     "The server is not running a world yet.");
         }
         try {
-            return claimReward(server, playerId, params);
+            if (server.isSameThread()) {
+                return claimReward(server, playerId, params);
+            }
+            // J2 (RT-17): Core promises the server thread, but nothing here relies on it — a call from any other
+            // thread (an HTTP worker) hops onto the server thread and waits, so a claim can never race the join,
+            // respawn or periodic delivery of the same owed entry.
+            return server.submit(() -> claimReward(server, playerId, params)).get(CLAIM_TIMEOUT_SECONDS,
+                    TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return LinkActionResult.error(LinkActionResult.Error.INTERNAL, "The claim could not be processed.");
+        } catch (ExecutionException | TimeoutException e) {
+            NeroQuestsCommon.LOGGER.warn("[NeroQuests] NeroLink action '{}' did not finish on the server thread ({}).",
+                    actionId, e.getClass().getSimpleName());
+            return LinkActionResult.error(LinkActionResult.Error.INTERNAL, "The claim could not be processed.");
         } catch (RuntimeException e) {
             // Action id only — never who asked (POPIA/GDPR).
             NeroQuestsCommon.LOGGER.warn("[NeroQuests] NeroLink action '{}' failed.", actionId, e);

@@ -12,11 +12,11 @@ a name, IP address, chat line or coordinates.
 | --- | --- | --- | --- | --- | --- | --- |
 | Quest progress (counters, completions, paid ledger, revoke markers, repeat stamps, daily contracts) | world file `neroquests:quest_progress` + Core backup | run quests; pay each reward once | game UUID | inactivity sweep / Core purge | yes | yes |
 | Owed and kept rewards | inside quest progress | hand over rewards that could not be delivered | game UUID | until delivered, or with the player's data | yes | yes |
-| Payout journal | `data/neroquests_payout_journal.json` | crash-safe credit payouts | game UUID | seconds (removed when the economy answers) | not needed (transient) | yes |
+| Payout journal | `data/neroquests_payout_journal.json` | crash-safe currency payouts (economy and Core deposits) | game UUID | seconds (removed when the payout returns) | not needed (transient) | yes |
 | Custom quests (`created_by`) | world file `neroquests:custom_quests` + backup | run player-made quests; show "you" to the author | game UUID of the author | until the quest is deleted | yes (own quests) | `created_by` cleared, quest kept |
 | Editor allow-list and lock | inside the custom-quest file | decide who may author | game UUID | until removed by an operator | yes (on the list or not) | yes |
 | World completion counts | inside quest progress | completion signals for other mods | none | kept | — | — |
-| Seen event channels, rate-limit buckets, seen chapters, post-erasure hold | memory only | editor channel picker, flood limits, app alerts, erasure safety | channels: none; others: game UUID | until the player leaves or the server stops | — | never saved |
+| Seen event channels, rate-limit buckets, seen chapters, post-erasure hold, daily custom-reward tally | memory only | editor channel picker, flood limits, app alerts, erasure safety, custom-quest daily limit | channels: none; others: game UUID | until the player leaves, the UTC day ends (tally) or the server stops | — | never saved; the tally is also dropped on an erasure request |
 
 ## What is stored
 
@@ -78,10 +78,13 @@ file). It holds:
 
 - the custom chapters and quests themselves — titles, descriptions and labels the author wrote, icons,
   layout, objectives, rewards, repeat settings, timestamps and escrow counts;
-- **`created_by`** on each quest: the author's game UUID — the only player identifier those rows add.
+- **`created_by`** on each quest: the author's game UUID — the only player identifier the quest rows add.
   It is used so the author can be shown "you" (everyone else sees "another player"; it is never turned
   into a name), and so it can be exported and erased;
-- the **editor allow-list**: game UUIDs an operator allowed to author, and whether the editor is locked.
+- the **editor allow-list**: the game UUIDs of players an operator allowed to author, and whether the
+  editor is locked. Together with `created_by` these are the **only two kinds of player identifier** in
+  this file. An allow-list entry is used for nothing but the permission decision, is never shown as a
+  name, is included in that player's export (as "on the list or not") and removed by erasure.
 
 Purpose: running the quests the server's players made, and deciding who may make them. Retention: until
 the quest is deleted (by an author or an operator) or the player is removed from the list; the quests are
@@ -126,6 +129,11 @@ Quest progress for inactive players is purged automatically, two ways:
 Each player row carries a single "last updated" timestamp for exactly this purpose;
 shared server-wide quest progress carries no player identifiers and is never pruned. Custom quests and
 the editor allow-list are not pruned by inactivity (see above); erasure reaches them.
+
+Erasure, `reset <player>` and retention purges also remove the player's record of which rewards were
+already paid. NeroQuests deliberately keeps no hidden copy (not even a pseudonymous one) to stop a returning
+player from earning a reward again: privacy wins. The consequence for operators — a purged player can
+re-collect rewards of quests that are measured rather than counted — is why the sweep is off by default.
 
 ## Access / export
 
@@ -179,8 +187,13 @@ Details: [`wiki/Link-Module.md`](wiki/Link-Module.md).
 - **Seen event channels:** the ids of `custom_event` channels other mods fired this session (at most
   256), so the editor can offer them. Channel ids only — never who fired them. Cleared when the server
   stops.
-- **Editor and `manual complete` rate limits:** a per-player counter keyed by game UUID, never logged
-  or saved, dropped when idle and when the server stops.
+- **Editor and `manual complete` rate limits:** per-player counters keyed by game UUID (including the
+  cap on editor packets per second and on refusal replies), never logged or saved, dropped when idle and
+  when the server stops.
+- **Daily custom-reward tally:** how many paid custom-quest completions each player received today
+  (game UUID and a count), to apply `customRewardsPerPlayerDaily`. Never logged or saved; cleared at the
+  UTC day boundary, when the server stops, and by an erasure request. The world-wide credit total for
+  `customCurrencyDailyCap` holds no identifier.
 - **Seen chapters** for the "A new chapter appeared" alert and the **post-erasure hold** described
   above: in memory while you are online, never saved.
 

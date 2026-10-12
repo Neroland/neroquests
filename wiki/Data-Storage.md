@@ -92,6 +92,13 @@ player's progress is kept.
 The sweep logs only the **number** of records purged. Shared `scope: server` progress belongs to
 the world, not to a player, and is never pruned.
 
+**Purging forgets what was paid, too.** A purge removes the player's paid-reward record along with their
+progress — keeping it would mean keeping data about a person the server was told to forget. A purged
+player who comes back therefore starts fresh, and quests that are *measured* rather than counted (holding
+items, standing in a dimension or structure, an open gate, completed quests) can complete and pay again
+on their next check. That is why retention is off by default (`0`); if you turn it on, choose a period
+long enough that "come back after N idle days and re-collect" is not worth it on your server.
+
 ## Erasure
 
 NeroQuests registers with Neroland Core's shared per-player erasure hook, so one request clears
@@ -103,7 +110,12 @@ a player everywhere in the Neroland ecosystem at once:
 That drops every quest row and the activity stamp for that UUID. Erasure never logs who was
 erased. Shared server-scoped progress is untouched — it holds no player identifiers. Custom quests the
 player authored stay in the world, with `created_by` cleared, and the player leaves the editor
-allow-list; the custom store's backup is refreshed in the same request.
+allow-list; the custom store's backup is refreshed in the same request. An escrow deposit on a quest
+whose author was erased is discarded when the quest's rewards change or it is deleted (it is never handed
+to someone else).
+
+Erasure also removes the paid-reward record (see Retention above), so measured quests can pay an erased
+player again if they return. Privacy wins here by design.
 
 ## Export (data access)
 

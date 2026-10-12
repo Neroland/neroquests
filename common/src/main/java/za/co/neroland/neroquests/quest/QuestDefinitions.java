@@ -23,6 +23,7 @@ import com.mojang.serialization.JsonOps;
 
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 
@@ -32,6 +33,7 @@ import za.co.neroland.neroquests.custom.CustomRules;
 import za.co.neroland.neroquests.quest.objective.ContentIds;
 import za.co.neroland.neroquests.quest.objective.UnknownObjective;
 import za.co.neroland.neroquests.quest.reward.GateReward;
+import za.co.neroland.neroquests.quest.reward.ModHookReward;
 import za.co.neroland.neroquests.quest.reward.ReputationReward;
 import za.co.neroland.neroquests.quest.reward.UnknownReward;
 
@@ -606,12 +608,17 @@ public final class QuestDefinitions {
     private static Map<Identifier, Quest> readQuests(ResourceManager resources,
                                                      List<ValidationIssue> collected) {
         Map<Identifier, Quest> loaded = new LinkedHashMap<>();
-        for (Map.Entry<Identifier, Resource> file : listJson(resources, QUEST_DIRECTORY).entrySet()) {
+        for (Map.Entry<Identifier, List<Resource>> file : listJson(resources, QUEST_DIRECTORY).entrySet()) {
             Identifier questId = toDefinitionId(file.getKey(), QUEST_DIRECTORY);
             if (questId == null) {
                 continue;
             }
-            try (BufferedReader reader = file.getValue().openAsReader()) {
+            Resource resource = chooseResource(questId, "quest", file.getValue(), collected);
+            if (resource == null) {
+                continue;
+            }
+            boolean datapack = fromDatapack(resource);
+            try (BufferedReader reader = resource.openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
                 List<String> errors = new ArrayList<>(1);
                 Optional<Quest.Data> parsed = decodeStrict(Quest.DATA_CODEC.parse(JsonOps.INSTANCE, json),
@@ -620,7 +627,8 @@ public final class QuestDefinitions {
                                     "[NeroQuests] Bad quest definition {}: {}", questId, error);
                             errors.add(error);
                         });
-                parsed.ifPresent(data -> loaded.put(questId, new Quest(questId, data)));
+                parsed.ifPresent(data -> loaded.put(questId,
+                        datapack ? withoutModHooks(new Quest(questId, data), collected) : new Quest(questId, data)));
                 recordParseErrors(collected, questId, "quest", parsed.isPresent(), errors);
             } catch (Exception e) {
                 NeroQuestsCommon.LOGGER.warn("[NeroQuests] Could not read quest {}", questId, e);
@@ -634,12 +642,16 @@ public final class QuestDefinitions {
     private static Map<Identifier, Chapter> readChapters(ResourceManager resources,
                                                          List<ValidationIssue> collected) {
         Map<Identifier, Chapter> loaded = new LinkedHashMap<>();
-        for (Map.Entry<Identifier, Resource> file : listJson(resources, CHAPTER_DIRECTORY).entrySet()) {
+        for (Map.Entry<Identifier, List<Resource>> file : listJson(resources, CHAPTER_DIRECTORY).entrySet()) {
             Identifier chapterId = toDefinitionId(file.getKey(), CHAPTER_DIRECTORY);
             if (chapterId == null) {
                 continue;
             }
-            try (BufferedReader reader = file.getValue().openAsReader()) {
+            Resource resource = chooseResource(chapterId, "chapter", file.getValue(), collected);
+            if (resource == null) {
+                continue;
+            }
+            try (BufferedReader reader = resource.openAsReader()) {
                 JsonElement json = JsonParser.parseReader(reader);
                 List<String> errors = new ArrayList<>(1);
                 Optional<Chapter.Data> parsed = decodeStrict(Chapter.DATA_CODEC.parse(JsonOps.INSTANCE, json),
@@ -700,8 +712,104 @@ public final class QuestDefinitions {
         }
     }
 
-    private static Map<Identifier, Resource> listJson(ResourceManager resources, String directory) {
-        return resources.listResources(directory, file -> file.getPath().endsWith(EXTENSION));
+    private static Map<Identifier, List<Resource>> listJson(ResourceManager resources, String directory) {
+        return resources.listResourceStacks(directory, file -> file.getPath().endsWith(EXTENSION));
+    }
+
+    // --- J2 (RT-07): where a definition file came from ------------------------------------------------
+
+    /**
+     * Whether a definition file came from a <b>datapack</b> (a world or server datapack folder) rather than from a
+     * mod's own resources. Read from the vanilla pack metadata of the file's source pack, so it works the same on
+     * every loader: world datapacks carry {@code PackSource.WORLD} and an id starting with {@code file/}.
+     */
+    static boolean fromDatapack(Resource resource) {
+        boolean worldOrServer = false;
+        String packId = "";
+        try {
+            packId = resource.sourcePackId();
+            PackSource source = resource.source().location().source();
+            worldOrServer = source == PackSource.WORLD || source == PackSource.SERVER;
+        } catch (RuntimeException e) {
+            // A pack without location metadata is treated by its id alone.
+        }
+        return datapackOrigin(worldOrServer, packId);
+    }
+
+    /** Pure form of {@link #fromDatapack}: the pack's source is WORLD/SERVER, or its id names a datapack folder. */
+    static boolean datapackOrigin(boolean worldOrServerSource, String packId) {
+        return worldOrServerSource || (packId != null && packId.startsWith("file/"));
+    }
+
+    /**
+     * Which file of a stack (lowest to highest pack priority) to read, given which of them come from a datapack.
+     * Any namespace but {@code neroquests}: the highest-priority file, as before. NeroQuests' own namespace: the
+     * highest-priority file from <em>mod</em> resources — a datapack can neither replace a NeroQuests quest nor add
+     * one in that namespace (which would let it write progression gates and reputation). -1 when none qualifies.
+     * Pure.
+     */
+    static int pickResource(List<Boolean> datapack, boolean spineNamespace) {
+        if (datapack.isEmpty()) {
+            return -1;
+        }
+        if (!spineNamespace) {
+            return datapack.size() - 1;
+        }
+        for (int index = datapack.size() - 1; index >= 0; index--) {
+            if (!datapack.get(index).booleanValue()) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    /** {@link #pickResource} for one file, reporting a datapack file that was passed over (or the only one). */
+    private static Resource chooseResource(Identifier id, String kind, List<Resource> stack,
+                                           List<ValidationIssue> collected) {
+        List<Boolean> origin = new ArrayList<>(stack.size());
+        for (Resource resource : stack) {
+            origin.add(Boolean.valueOf(fromDatapack(resource)));
+        }
+        boolean spine = QuestSource.of(id) == QuestSource.SPINE;
+        int chosen = pickResource(origin, spine);
+        if (spine && chosen < 0) {
+            NeroQuestsCommon.LOGGER.warn("[NeroQuests] A datapack adds {} {} in the '{}' namespace; dropped (datapacks "
+                    + "ship quests in their own namespace).", kind, id, NeroQuestsCommon.MOD_ID);
+            collected.add(new ValidationIssue(ValidationIssue.Severity.DROPPED, id,
+                    "a datapack may not add " + kind + "s in the '" + NeroQuestsCommon.MOD_ID
+                            + "' namespace; use your own namespace"));
+        } else if (spine && chosen < stack.size() - 1) {
+            NeroQuestsCommon.LOGGER.warn("[NeroQuests] A datapack tries to replace NeroQuests {} {}; the datapack copy "
+                    + "is ignored.", kind, id);
+            collected.add(new ValidationIssue(ValidationIssue.Severity.IGNORED, id,
+                    "a datapack copy of this NeroQuests " + kind + " was ignored (NeroQuests' own definitions cannot "
+                            + "be replaced by a datapack)"));
+        }
+        return chosen < 0 ? null : stack.get(chosen);
+    }
+
+    /**
+     * A datapack quest's {@code mod_hook} rewards are dropped (J2, RT-07): a hook gate fires a sibling mod's own
+     * effect, so only that mod's own resources may name it. Reported; the rest of the quest loads.
+     */
+    private static Quest withoutModHooks(Quest quest, List<ValidationIssue> collected) {
+        List<RewardSpec> kept = new ArrayList<>(quest.rewards().size());
+        for (RewardSpec reward : quest.rewards()) {
+            if (reward instanceof ModHookReward hook) {
+                NeroQuestsCommon.LOGGER.warn("[NeroQuests] Quest {} comes from a datapack; its mod_hook reward {} is "
+                        + "dropped.", quest.id(), hook.gate());
+                collected.add(new ValidationIssue(ValidationIssue.Severity.IGNORED, quest.id(),
+                        "mod_hook reward " + hook.gate() + " dropped: only the mod that owns a hook gate may name it, "
+                                + "not a datapack"));
+            } else {
+                kept.add(reward);
+            }
+        }
+        if (kept.size() == quest.rewards().size()) {
+            return quest;
+        }
+        return new Quest(quest.id(), quest.title(), quest.description(), quest.icon(), quest.prerequisites(),
+                quest.objectives(), List.copyOf(kept), quest.scope(), quest.visibleGate(), quest.modAbsent());
     }
 
     // --- validation --------------------------------------------------------

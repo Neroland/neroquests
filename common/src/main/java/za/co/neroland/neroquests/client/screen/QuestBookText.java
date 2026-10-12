@@ -106,6 +106,54 @@ public final class QuestBookText {
         return Component.translatable(G + "objective.unknown", rawId("type_id", spec.typeId()));
     }
 
+    /**
+     * The icon shown beside an objective in the quest drawer: the target item for item objectives, a fitting
+     * vanilla item for the other kinds, or {@link ItemStack#EMPTY} (the drawer then draws a bullet).
+     */
+    public static ItemStack objectiveIcon(ObjectiveSpec spec) {
+        if (spec instanceof CollectItemObjective collect) {
+            return targetIcon(collect.selector());
+        }
+        if (spec instanceof CraftItemObjective craft) {
+            ItemStack target = targetIcon(craft.selector());
+            return target.isEmpty() ? new ItemStack(Items.CRAFTING_TABLE) : target;
+        }
+        if (spec instanceof EconomyObjective economy) {
+            Item item = economy.item().map(QuestBookText::resolve).orElse(null);
+            return new ItemStack(item == null ? Items.EMERALD : item);
+        }
+        if (spec instanceof KillEntityObjective) {
+            return new ItemStack(Items.IRON_SWORD);
+        }
+        if (spec instanceof ReachDimensionObjective) {
+            return new ItemStack(Items.COMPASS);
+        }
+        if (spec instanceof VisitStructureObjective) {
+            return new ItemStack(Items.FILLED_MAP);
+        }
+        if (spec instanceof QuestCompleteObjective) {
+            return new ItemStack(Items.BOOK);
+        }
+        if (spec instanceof ManualObjective) {
+            return new ItemStack(Items.WRITABLE_BOOK);
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static ItemStack targetIcon(ItemTarget target) {
+        Item item = target.item().map(QuestBookText::resolve).orElse(null);
+        return item == null ? ItemStack.EMPTY : new ItemStack(item);
+    }
+
+    /** The stack an item reward pays out (with its count), or {@link ItemStack#EMPTY} for other rewards. */
+    public static ItemStack rewardStack(RewardSpec spec) {
+        if (spec instanceof ItemReward item) {
+            Item resolved = resolve(item.item());
+            return resolved == null ? ItemStack.EMPTY : new ItemStack(resolved, Math.max(1, item.count()));
+        }
+        return ItemStack.EMPTY;
+    }
+
     /** A one-line description of a reward payout. */
     public static Component reward(RewardSpec spec) {
         if (spec instanceof XpReward xp) {

@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.custom;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import net.minecraft.resources.Identifier;
 
@@ -46,6 +47,16 @@ public final class CustomRules {
     public static final Set<Identifier> REWARD_TYPES = Set.of(
             ItemReward.TYPE_ID, LootTableReward.TYPE_ID, XpReward.TYPE_ID, CurrencyReward.TYPE_ID);
 
+    /** Longest {@code custom_event} {@code event_scope} a custom quest may use. */
+    public static final int EVENT_SCOPE_MAX = 64;
+
+    private static final Pattern EVENT_SCOPE = Pattern.compile("[A-Za-z0-9_.:/#-]{1,64}");
+
+    /** Whether {@code scope} is a legal custom-quest {@code event_scope}: 1..64 id-like characters. */
+    public static boolean eventScopeOk(String scope) {
+        return scope != null && EVENT_SCOPE.matcher(scope).matches();
+    }
+
     /** The largest single item reward a custom quest may pay: one full stack of a 64-stacking item. */
     public static final int MAX_ITEM_COUNT = 64;
 
@@ -63,7 +74,7 @@ public final class CustomRules {
         if (quest.visibleGate().isPresent()) {
             return Optional.of("custom quests cannot use visible_gate");
         }
-        if (!TextSanitizer.isClean(quest.title()) || quest.title().isEmpty()
+        if (!TextSanitizer.isClean(quest.title()) || !TextSanitizer.hasVisible(quest.title())
                 || TextSanitizer.length(quest.title()) > TextSanitizer.TITLE_MAX) {
             return Optional.of("title is empty, too long or not sanitised");
         }
@@ -97,10 +108,17 @@ public final class CustomRules {
                 return Optional.of("objective #" + index + ": count must be " + CustomLimits.MIN_COUNT + " to "
                         + CustomLimits.MAX_COUNT);
             }
-            if (objective instanceof ManualObjective manual && (manual.label().isEmpty()
+            if (objective instanceof ManualObjective manual && (!TextSanitizer.hasVisible(manual.label())
                     || !TextSanitizer.isClean(manual.label())
                     || TextSanitizer.length(manual.label()) > TextSanitizer.LABEL_MAX)) {
                 return Optional.of("objective #" + index + ": manual label is empty, too long or not sanitised");
+            }
+            // J2 (RT-09): the one free string a custom objective carries besides a label is a custom_event scope
+            // key (a colony, region or dimension key): bounded and id-like, so it cannot smuggle text or bulk.
+            if (objective instanceof CustomEventObjective event && event.eventScope().isPresent()
+                    && !eventScopeOk(event.eventScope().get())) {
+                return Optional.of("objective #" + index + ": event_scope must be 1 to " + EVENT_SCOPE_MAX
+                        + " characters of a-z, A-Z, 0-9 and _ . : / # -");
             }
         }
         return Optional.empty();
@@ -125,6 +143,8 @@ public final class CustomRules {
                 if (item.count() > MAX_ITEM_COUNT) {
                     return Optional.of("reward #" + index + ": an item reward is at most one stack");
                 }
+            } else if (reward instanceof LootTableReward) {
+                stacks++; // J2 (RT-04): a loot-table roll takes a stack slot
             } else if (reward instanceof XpReward experience) {
                 xp += experience.amount();
             } else if (reward instanceof CurrencyReward money) {
@@ -132,7 +152,7 @@ public final class CustomRules {
             }
         }
         if (stacks > limits.maxStacks()) {
-            return Optional.of("more than " + limits.maxStacks() + " item-stack rewards");
+            return Optional.of("more than " + limits.maxStacks() + " item-stack and loot-table rewards");
         }
         if (xp > limits.maxXp()) {
             return Optional.of("more than " + limits.maxXp() + " experience");

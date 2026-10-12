@@ -50,6 +50,10 @@ public record EditResult(boolean ok, Optional<Identifier> id, String key, List<S
     public static final String REWARD_STACK = P + "reward.stack";
     public static final String REWARD_LOOT_TABLE = P + "reward.loot_table";
     public static final String REWARD_CURRENCY = P + "reward.currency";
+    /** J2 (RT-04): a loot table outside the {@code customLootTablePrefixes}. */
+    public static final String REWARD_LOOT_PREFIX = P + "reward.loot_prefix";
+    /** J2 (RT-03): only an operator or an allow-listed author may set credits or edit a quest that pays them. */
+    public static final String CURRENCY_DENIED = P + "currency_denied";
     public static final String ESCROW_LOOT_TABLE = P + "escrow.loot_table";
     public static final String ESCROW_MISSING = P + "escrow.missing";
     public static final String ESCROW_COPIES = P + "escrow.copies";

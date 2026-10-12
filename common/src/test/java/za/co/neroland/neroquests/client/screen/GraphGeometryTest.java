@@ -9,69 +9,73 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
-/** E3: node / handle / line hit-testing, snapping, pan limits and free slots. */
+/** E3: node / handle / line hit-testing, snapping, label room and free slots. */
 class GraphGeometryTest {
 
     @Test
     void nodesSitOnTheGrid() {
-        assertEquals(100 + 12 + 5 + 2 * 30, GraphGeometry.nodeX(100, 5, 2));
-        assertEquals(50 + 12 - 7 - 30, GraphGeometry.nodeY(50, -7, -1));
-        assertTrue(GraphGeometry.inNode(10, 10, 10, 10));
-        assertTrue(GraphGeometry.inNode(31, 31, 10, 10));
-        assertFalse(GraphGeometry.inNode(32, 10, 10, 10));
-        assertFalse(GraphGeometry.inNode(9, 10, 10, 10));
+        assertEquals(60, GraphGeometry.world(2));
+        assertEquals(-30, GraphGeometry.world(-1));
+        int size = GraphGeometry.NODE;
+        assertTrue(GraphGeometry.inNode(10, 10, 10, 10, size));
+        assertTrue(GraphGeometry.inNode(10 + size - 1, 10 + size - 1, 10, 10, size));
+        assertFalse(GraphGeometry.inNode(10 + size, 10, 10, 10, size));
+        assertFalse(GraphGeometry.inNode(9, 10, 10, 10, size));
+        assertTrue(GraphGeometry.inNode(22, 22, 10, 10, 13), "a zoomed-out node is smaller");
+        assertFalse(GraphGeometry.inNode(23, 10, 10, 10, 13));
     }
 
     @Test
     void handleStraddlesTheRightEdge() {
-        int nx = 100;
-        int ny = 100;
-        int hx = GraphGeometry.handleX(nx);
-        int hy = GraphGeometry.handleY(ny);
-        assertTrue(hx < nx + GraphGeometry.NODE && hx + GraphGeometry.HANDLE > nx + GraphGeometry.NODE);
-        assertTrue(GraphGeometry.inHandle(hx + 2, hy + 2, nx, ny));
-        assertTrue(GraphGeometry.inHandle(nx + GraphGeometry.NODE + 1, ny + GraphGeometry.NODE / 2, nx, ny));
-        assertFalse(GraphGeometry.inHandle(nx + 2, ny + 2, nx, ny), "the node body is not the handle");
+        for (int size : new int[] {13, 20, 26, 39}) {
+            int nx = 100;
+            int ny = 100;
+            int hx = GraphGeometry.handleX(nx, size);
+            int hy = GraphGeometry.handleY(ny, size);
+            assertTrue(hx < nx + size && hx + GraphGeometry.HANDLE > nx + size);
+            assertTrue(GraphGeometry.inHandle(hx + 2, hy + 2, nx, ny, size));
+            assertTrue(GraphGeometry.inHandle(nx + size + 1, ny + size / 2, nx, ny, size));
+            assertFalse(GraphGeometry.inHandle(nx + 1, ny + 1, nx, ny, size), "the node body is not the handle");
+        }
     }
 
     @Test
     void dropsSnapAndClamp() {
-        // Canvas at x=0, no pan: grid cell 3 starts at 12 + 90 = 102.
-        assertEquals(3, GraphGeometry.snap(102, 0, 0, -512, 512));
-        assertEquals(3, GraphGeometry.snap(110, 0, 0, -512, 512));
-        assertEquals(4, GraphGeometry.snap(118, 0, 0, -512, 512));
-        assertEquals(-2, GraphGeometry.snap(12 - 60, 0, 0, -512, 512));
-        assertEquals(512, GraphGeometry.snap(1_000_000, 0, 0, -512, 512));
-        assertEquals(-512, GraphGeometry.snap(-1_000_000, 0, 0, -512, 512));
-        assertEquals(0, GraphGeometry.snap(12 + 40, 0, 40, -512, 512), "pan is taken into account");
+        assertEquals(3, GraphGeometry.snap(90, -512, 512));
+        assertEquals(3, GraphGeometry.snap(98, -512, 512));
+        assertEquals(4, GraphGeometry.snap(106, -512, 512));
+        assertEquals(-2, GraphGeometry.snap(-60, -512, 512));
+        assertEquals(512, GraphGeometry.snap(1_000_000, -512, 512));
+        assertEquals(-512, GraphGeometry.snap(-1_000_000, -512, 512));
     }
 
     @Test
-    void linesAreHitNearTheSegmentButNotOnNodes() {
+    void linesAreHitNearTheSegments() {
         assertEquals(0.0D, GraphGeometry.distanceToSegment(5, 0, 0, 0, 10, 0), 1e-9);
         assertEquals(3.0D, GraphGeometry.distanceToSegment(5, 3, 0, 0, 10, 0), 1e-9);
         assertEquals(5.0D, GraphGeometry.distanceToSegment(13, 4, 0, 0, 10, 0), 1e-9);
         assertEquals(1.0D, GraphGeometry.distanceToSegment(1, 1, 1, 0, 1, 0), 1e-9, "degenerate segment");
-        // Nodes at (0,0) and (90,0): the line runs along y = 11 between the centres.
-        assertTrue(GraphGeometry.onLine(50, 12, 0, 0, 90, 0));
-        assertFalse(GraphGeometry.onLine(50, 20, 0, 0, 90, 0));
-        assertFalse(GraphGeometry.onLine(5, 11, 0, 0, 90, 0), "on the source node");
-        assertFalse(GraphGeometry.onLine(95, 11, 0, 0, 90, 0), "on the target node");
+        int[] elbow = {0, 0, 20, 0, 20, 40, 50, 40};
+        assertTrue(GraphGeometry.onPolyline(10, 2, elbow));
+        assertTrue(GraphGeometry.onPolyline(21, 20, elbow));
+        assertTrue(GraphGeometry.onPolyline(45, 42, elbow));
+        assertFalse(GraphGeometry.onPolyline(10, 20, elbow), "inside the elbow, away from every segment");
+        assertFalse(GraphGeometry.onPolyline(60, 40, elbow), "past the end");
     }
 
     @Test
-    void panRangeMatchesTheOriginalBookInViewMode() {
-        // Graph 0..4 (166 px) in a 282 px view: no pan at all.
-        assertEquals(0, GraphGeometry.clampPan(50, 0, 4, 282, false));
-        assertEquals(0, GraphGeometry.clampPan(-50, 0, 4, 282, false));
-        // Graph wider than the view: [view - graph, 0].
-        assertEquals(-66, GraphGeometry.clampPan(-500, 0, 4, 100, false));
-        assertEquals(0, GraphGeometry.clampPan(500, 0, 4, 100, false));
-        // Negative cells (custom chapters) can be scrolled to.
-        assertEquals(90, GraphGeometry.clampPan(500, -3, 0, 100, false));
-        // Edit mode adds slack on both sides.
-        assertEquals(GraphGeometry.EDIT_SLACK, GraphGeometry.clampPan(500, 0, 4, 282, true));
-        assertEquals(-GraphGeometry.EDIT_SLACK, GraphGeometry.clampPan(-500, 0, 4, 282, true));
+    void labelsGetTheRoomBetweenNeighbours() {
+        // Nodes two cells apart on one row: 60 px apart, label room 56.
+        int[] xs = {0, 60, 120};
+        int[] ys = {0, 0, 0};
+        assertEquals(56, GraphGeometry.labelRoom(1, xs, ys, 3));
+        // A lone node gets the cap.
+        assertEquals(GraphGeometry.LABEL_MAX, GraphGeometry.labelRoom(0, new int[] {0}, new int[] {0}, 1));
+        // A node two rows down (60 px) does not limit the label; a node directly under the label does.
+        assertEquals(GraphGeometry.LABEL_MAX, GraphGeometry.labelRoom(0, new int[] {0, 0}, new int[] {0, 60}, 2));
+        assertEquals(0, GraphGeometry.labelRoom(0, new int[] {0, 0}, new int[] {0, 30}, 2));
+        // Adjacent cells leave no useful room.
+        assertEquals(26, GraphGeometry.labelRoom(0, new int[] {0, 30}, new int[] {0, 0}, 2));
     }
 
     @Test

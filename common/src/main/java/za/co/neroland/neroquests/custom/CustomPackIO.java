@@ -5,10 +5,13 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -45,15 +48,18 @@ import za.co.neroland.neroquests.quest.reward.LootTableReward;
  *
  * <h2>Export</h2>
  *
- * <p>{@link #export} writes {@code <world>/datapacks/neroquests_custom_export/}: a {@code pack.mcmeta}, the
+ * <p>{@link #export} writes a <b>template</b> to {@code <world>/neroquests_exports/<UTC timestamp>/} — outside
+ * {@code datapacks/}, so the world never loads it by itself (J2, RT-06: a {@code /reload} or restart would
+ * otherwise enable it next to the originals and every quest would pay twice). The folder holds a
+ * {@code pack.mcmeta}, the
  * chapters and quests as ordinary quest-pack JSON in namespace {@value #EXPORT_NAMESPACE}
  * ({@code data/custom_export/neroquests/{chapters,quests}/...}), and — because pack titles must be translation
  * keys — a resource-pack-style {@code assets/custom_export/lang/en_us.json} holding the author text under the
  * recommended keys ({@code quest.custom_export.<chapter>.<quest>.title|desc},
  * {@code chapter.custom_export.<chapter>.title}, {@code ...manual<n>} for manual labels). <b>No
  * {@code created_by}</b> and nothing else about any player goes into the export. Repeatable flags and escrow do
- * not exist in packs and are left out. Promote it by moving {@code data/} into a real datapack (or a mod jar)
- * and {@code assets/} into a resource pack (or the same jar), renaming the namespace if wanted, deleting the
+ * not exist in packs and are left out. Promote it by renaming the namespace to your own, moving {@code data/}
+ * into a real datapack (or a mod jar) and {@code assets/} into a resource pack (or the same jar), deleting the
  * custom originals, then {@code /reload}.
  *
  * <h2>Import</h2>
@@ -70,8 +76,14 @@ public final class CustomPackIO {
     /** The namespace an export uses. */
     public static final String EXPORT_NAMESPACE = "custom_export";
 
-    /** The datapack folder an export writes. */
+    /** The pre-J2 datapack folder an export wrote (no longer written; named in the docs for cleanup). */
     public static final String EXPORT_FOLDER = "neroquests_custom_export";
+
+    /** The world folder exports go to, one timestamped sub-folder each (never inside {@code datapacks/}). */
+    public static final String EXPORTS_DIR = "neroquests_exports";
+
+    private static final DateTimeFormatter STAMP =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss", Locale.ROOT).withZone(ZoneOffset.UTC);
 
     private static final Pattern FOLDER = Pattern.compile("[a-z0-9_.\\-]{1,64}");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
@@ -91,18 +103,28 @@ public final class CustomPackIO {
      * @param externalReferences prerequisites / quest_complete targets left pointing outside the export (custom
      *                           quests of other chapters, or another pack's quests, which a pack may not name)
      * @param repeatable         repeatable quests exported as one-off quests
+     * @param folder             where it was written, relative to the world folder ({@code neroquests_exports/<stamp>})
      */
-    public record ExportResult(int chapters, int quests, int externalReferences, int repeatable) {
+    public record ExportResult(int chapters, int quests, int externalReferences, int repeatable, String folder) {
+    }
+
+    /** The export folder name for an instant: {@code yyyyMMdd-HHmmss} in UTC (pure). */
+    static String exportStamp(long epochMillis) {
+        return STAMP.format(Instant.ofEpochMilli(epochMillis));
     }
 
     /** Export every custom chapter, or only {@code chapterSlug}'s. */
     public static ExportResult export(MinecraftServer server, Optional<String> chapterSlug) throws IOException {
         CustomQuestState state = CustomQuestState.get(server);
-        Path root = server.getWorldPath(LevelResource.DATAPACK_DIR).resolve(EXPORT_FOLDER);
+        Path exports = server.getWorldPath(LevelResource.ROOT).resolve(EXPORTS_DIR);
+        String stamp = exportStamp(System.currentTimeMillis());
+        String name = stamp;
+        for (int suffix = 2; Files.exists(exports.resolve(name)); suffix++) {
+            name = stamp + "-" + suffix; // two exports in one second
+        }
+        Path root = exports.resolve(name);
         Path data = root.resolve("data").resolve(EXPORT_NAMESPACE).resolve("neroquests");
         Path lang = root.resolve("assets").resolve(EXPORT_NAMESPACE).resolve("lang");
-        deleteTree(root.resolve("data").resolve(EXPORT_NAMESPACE));
-        deleteTree(root.resolve("assets").resolve(EXPORT_NAMESPACE));
         Files.createDirectories(data);
         Files.createDirectories(lang);
         writeJson(root.resolve("pack.mcmeta"), packMeta());
@@ -178,7 +200,7 @@ public final class CustomPackIO {
         JsonObject langJson = new JsonObject();
         translations.forEach(langJson::addProperty);
         writeJson(lang.resolve("en_us.json"), langJson);
-        return new ExportResult(chapters, quests, external, repeatable);
+        return new ExportResult(chapters, quests, external, repeatable, EXPORTS_DIR + "/" + name);
     }
 
     /** Whether a reference leaves the exported chapter (another chapter's custom quest, or another pack's quest). */
@@ -501,17 +523,5 @@ public final class CustomPackIO {
     private static void writeJson(Path file, JsonElement json) throws IOException {
         Files.createDirectories(file.getParent());
         Files.writeString(file, GSON.toJson(json), StandardCharsets.UTF_8);
-    }
-
-    /** Delete a directory tree this exporter owns (inside its own export folder only). */
-    private static void deleteTree(Path directory) throws IOException {
-        if (!Files.isDirectory(directory)) {
-            return;
-        }
-        try (Stream<Path> walk = Files.walk(directory)) {
-            for (Path path : walk.sorted(Comparator.reverseOrder()).toList()) {
-                Files.delete(path);
-            }
-        }
     }
 }

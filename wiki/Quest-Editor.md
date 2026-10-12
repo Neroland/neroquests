@@ -89,8 +89,12 @@ editor, and finally closes the book. Every button explains itself when you hover
   chapter page. A quest can require other quests first: yours, NeroQuests' own, or a mod pack's.
 - **Objectives** (1 to 12): see the list above. Every item, creature, dimension and so on must exist on
   the server — the server checks when you save.
-- **Rewards** (up to 9): item stacks (one stack each), a loot table, experience and credits, within the
-  server's limits. Progression gates and faction standing cannot be rewards of player-made quests.
+- **Rewards** (up to 9): item stacks (one stack each), loot tables (only the families the server allows;
+  each one counts like an item stack), experience and credits, within the server's limits. Credits — and
+  any change to a quest that pays credits — need an operator level or the editor allow-list; Creative mode
+  alone is not enough. Progression gates and faction standing cannot be rewards of player-made quests.
+  Servers also cap what custom quests pay per day: a total of credits for the whole world, and a number of
+  paid custom quests per player (the book's chat line tells you when a limit was reached).
 - **Repeatable** quests (off by default): after a cooldown of at least a minute the quest re-arms for
   each player and pays again, at most once per cooldown.
 
@@ -101,12 +105,16 @@ own quests and the quests your mods ship cannot be edited.
 
 - Every change is sent to the server, which checks it and answers with a short message at the bottom
   of the book ("Saved." or the reason it was refused).
-- Text is shown exactly as typed, minus colour/formatting codes and control characters, which are
-  removed. It is never treated as a command, a link or a translation key.
+- Text is shown exactly as typed, minus colour/formatting codes, control characters, invisible filler
+  characters and piles of more than two accent marks on one letter, which are removed. A title that is
+  blank after that is refused. Text is never treated as a command, a link or a translation key.
 - The book shows who made a quest only as **you** or **another player** — never a name.
 - Changing a quest's objectives resets unfinished progress on it for everyone (finished stays
   finished). Deleting a quest removes everyone's progress on it.
 - If the server uses escrow, item rewards come out of your own inventory as a deposit, and what is left
-  comes back to you when you change or delete the quest.
+  comes back to you when you change or delete the quest. If your data has been erased by then, the
+  deposit is discarded rather than given to someone else.
+- Ticking a `manual` objective with `/neroquests manual complete` needs an operator level
+  or the editor allow-list, not just Creative mode.
 - Your quests are part of your data: an operator's data export for you includes them, and if your data
   is erased your quests stay but no longer name you as the author.

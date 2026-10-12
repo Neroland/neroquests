@@ -171,8 +171,11 @@ re-arm it. See [Quest format](Quest-Format.md#neroquestsmod_hook--your-mods-own-
 Rolls the table once per completion for the completing player (chest rules, at the player's position)
 and hands over what it produced. Whatever does not fit — or everything, for a player who is offline or
 dead — is kept and delivered later, like `item`. A table that is not loaded grants nothing and is
-logged once. Available to every source; the in-game editor checks the id when it is set, and refuses
-it while the server escrows custom rewards.
+logged once. Available to every source. Custom (editor-made) quests are held tighter: the table must
+start with one of the server's `customLootTablePrefixes` (default `minecraft:chests/` and
+`minecraft:gameplay/fishing`), each loot-table reward takes one of the quest's `customRewardMaxStacks`
+slots, and while the server escrows custom rewards a custom quest's loot table pays nothing — also on a
+quest saved before escrow was switched on. See [Editor permissions](Editor-Permissions.md).
 
 ## Degradation — a reward never breaks a quest
 
@@ -231,6 +234,12 @@ to a defined set of **recipients**:
 
 Players who are offline when the quest completes are not recipients. Revoking a server-scope quest
 with `--repay` lets the world and every former recipient be paid again.
+
+**Alternate accounts (by design).** Recipients are everyone online with the quest available, whether or
+not they helped, so a player who logs in idle alternate accounts collects the player-targeted rewards on
+each of them. That is the price of "a shared milestone pays the whole server". Pack authors who do not
+want it should keep server-scope rewards to world-level gates (as suggested below), or small, and put
+valuable rewards on player-scope follow-on quests. Custom (editor-made) quests are always player scope.
 
 If you want a shared milestone that rewards everyone, model it as a server-scope quest whose only
 reward is a `gate`, and gate the follow-on player-scope quests behind it.

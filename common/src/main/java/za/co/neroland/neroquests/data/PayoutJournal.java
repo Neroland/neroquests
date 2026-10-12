@@ -45,8 +45,18 @@ public final class PayoutJournal {
 
     private static final int FORMAT = 1;
 
-    /** An in-flight payout: who it is for and the owed-shaped record (with its request key). */
-    public record Entry(UUID player, OwedReward reward) {
+    /**
+     * An in-flight payout: who it is for and the owed-shaped record (with its request key).
+     *
+     * @param coreDeposit J2 (RT-14): paid through Core's {@code CurrencyApi.deposit}, which takes no request key —
+     *                    so a left-over entry cannot be told apart from a deposit that went through
+     */
+    public record Entry(UUID player, OwedReward reward, boolean coreDeposit) {
+
+        /** An economy payout (keyed, safe to retry). */
+        public Entry(UUID player, OwedReward reward) {
+            this(player, reward, false);
+        }
     }
 
     /** What start-up recovery does with each left-over entry (the server half of {@link #recover}). */
@@ -57,6 +67,13 @@ public final class PayoutJournal {
 
         /** Still refused: keep it in the owed queue (retried later with the same key). */
         void keep(UUID player, OwedReward reward);
+
+        /**
+         * J2 (RT-14): a left-over Core deposit. Core's deposit takes no key, so whether it went through is unknown;
+         * it is neither repeated nor kept as owed (that could pay twice) — only counted. Default: nothing.
+         */
+        default void unsettled(UUID player, OwedReward reward) {
+        }
     }
 
     private final Path file;
@@ -79,8 +96,13 @@ public final class PayoutJournal {
      * @return whether the record is durable (false: the write failed; the caller pays anyway, as before)
      */
     public synchronized boolean begin(UUID player, OwedReward reward) {
+        return begin(new Entry(player, reward));
+    }
+
+    /** {@link #begin(UUID, OwedReward)} for any entry (J2: Core deposits too). */
+    public synchronized boolean begin(Entry entry) {
         load();
-        entries.add(new Entry(player, reward));
+        entries.add(entry);
         return write();
     }
 
@@ -109,6 +131,11 @@ public final class PayoutJournal {
     public static int recover(PayoutJournal journal, Settler settler) {
         List<Entry> left = journal.pending();
         for (Entry entry : left) {
+            if (entry.coreDeposit()) {
+                settler.unsettled(entry.player(), entry.reward());
+                journal.end(entry.reward().requestKey());
+                continue;
+            }
             boolean paid;
             try {
                 paid = settler.retry(entry.player(), entry.reward());
@@ -159,7 +186,8 @@ public final class PayoutJournal {
             if (reward.requestKey().isEmpty() || reward.amount() < 1L) {
                 return Optional.empty();
             }
-            return Optional.of(new Entry(player, reward));
+            boolean core = row.has("path") && "core".equals(row.get("path").getAsString());
+            return Optional.of(new Entry(player, reward, core));
         } catch (RuntimeException e) {
             return Optional.empty();
         }
@@ -191,6 +219,9 @@ public final class PayoutJournal {
                 row.addProperty("reason", entry.reward().reason());
                 row.addProperty("source", entry.reward().source().toString());
                 row.addProperty("created_at", entry.reward().createdAt());
+                if (entry.coreDeposit()) {
+                    row.addProperty("path", "core");
+                }
                 pending.add(row);
             }
             root.add("pending", pending);

@@ -26,6 +26,7 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.config.NeroQuestsConfig;
 import za.co.neroland.neroquests.quest.QuestScope;
+import za.co.neroland.neroquests.quest.QuestSource;
 
 /**
  * The one server-wide store of quest progress, in two sections mirroring {@link QuestScope}:
@@ -841,23 +842,95 @@ public final class QuestProgressState extends SavedData {
         return full;
     }
 
+    /** Reason code of an owed escrow refund to a custom quest's author (J2, RT-10/RT-11). */
+    public static final String REASON_ESCROW_REFUND = "escrow_refund";
+
     /**
      * Record a reward as owed to a player (kept until paid, erased or pruned with their data). Beyond
-     * {@value #MAX_OWED_PER_PLAYER} entries the oldest is dropped; the caller tells the player.
+     * {@value #MAX_OWED_PER_PLAYER} entries one is dropped to make room; the caller tells the player.
      *
-     * @return how many old entries were dropped to make room
+     * <p>J2 (RT-10): which one is dropped depends on who is asking. Custom-quest rewards (author-made, see
+     * {@link #customReward}) go first, oldest first. A custom-quest reward may only push out another custom-quest
+     * reward: when the queue holds nothing else, the <em>new</em> custom entry is the one dropped, so an editor can
+     * never evict a player's spine, pack or contract rewards or an author's escrow refund. Any other entry pushes
+     * out the oldest custom-quest reward, else the oldest entry (as before).
+     *
+     * @return how many entries were dropped (an old one, or the new custom entry itself)
      */
     public int addOwed(UUID player, OwedReward reward) {
         List<OwedReward> list = owed.computeIfAbsent(player, i -> new ArrayList<>());
-        list.add(reward);
         int dropped = 0;
-        while (list.size() > MAX_OWED_PER_PLAYER) {
-            list.remove(0);
+        while (list.size() >= MAX_OWED_PER_PLAYER) {
+            int victim = evictionIndex(list, customReward(reward));
+            if (victim < 0) {
+                return dropped + 1; // the queue holds only protected entries: the custom reward is not kept
+            }
+            list.remove(victim);
             dropped++;
         }
+        list.add(reward);
         touch(player);
         notifyOwed(player, reward);
         return dropped;
+    }
+
+    /** Whether an owed entry is a custom-quest reward (author-made content, not an escrow refund). */
+    public static boolean customReward(OwedReward entry) {
+        return QuestSource.of(entry.source()) == QuestSource.CUSTOM && !REASON_ESCROW_REFUND.equals(entry.reason());
+    }
+
+    /** The entry to drop for room: the oldest custom-quest reward, else (only for a non-custom entry) the oldest. */
+    static int evictionIndex(List<OwedReward> list, boolean incomingCustom) {
+        for (int index = 0; index < list.size(); index++) {
+            if (customReward(list.get(index))) {
+                return index;
+            }
+        }
+        return incomingCustom || list.isEmpty() ? -1 : 0;
+    }
+
+    /** J2 (RT-10): whether a player's owed queue is at its cap (custom manual completions are then refused). */
+    public boolean isOwedFull(UUID player) {
+        List<OwedReward> list = owed.get(player);
+        return list != null && list.size() >= MAX_OWED_PER_PLAYER;
+    }
+
+    /**
+     * J2 (RT-17): take the entry keyed {@code key} out of the queue <em>before</em> anything is handed over (the
+     * listener is told once the hand-over is settled, by {@link #settleTaken}).
+     *
+     * @return its index, or -1 when no such entry exists
+     */
+    public int takeOwedByKey(UUID player, String key) {
+        List<OwedReward> list = owed.get(player);
+        if (list == null || key == null || key.isEmpty()) {
+            return -1;
+        }
+        for (int index = 0; index < list.size(); index++) {
+            if (key.equals(list.get(index).requestKey())) {
+                list.remove(index);
+                if (list.isEmpty()) {
+                    owed.remove(player);
+                }
+                setDirty();
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * J2 (RT-17): finish a {@link #takeOwedByKey}: put back what was not handed over ({@code rest}, null or
+     * empty when everything went) at its old place, and tell the listener what was delivered. Counts as activity.
+     */
+    public void settleTaken(UUID player, int index, OwedReward taken, OwedReward rest) {
+        long remaining = rest == null ? 0L : Math.max(0L, rest.amount());
+        if (remaining > 0L) {
+            List<OwedReward> list = owed.computeIfAbsent(player, i -> new ArrayList<>());
+            list.add(Math.max(0, Math.min(index, list.size())), rest);
+        }
+        touch(player);
+        notifySettled(player, taken, taken.amount() - remaining, remaining);
     }
 
     /** The rewards owed to a player (a copy; never null). */

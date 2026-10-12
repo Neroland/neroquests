@@ -25,7 +25,19 @@ says is trusted. A player may author when **any** of these is true:
 - they are a **spectator**, or **dead**;
 - the editor is **locked** (`/neroquests editor lock`) — then only permission level 4 may author.
 
-The same rule decides who may tick `manual` objectives with `/neroquests manual complete`.
+### What Creative mode alone does not unlock
+
+Creative players can already spawn any item, so letting them put items and experience on a quest adds
+nothing new. Credits are different: Creative mode cannot normally create money. So a stricter rule — the
+player passes everything above **and** has permission level `editorMinOpLevel` or is on the allow-list —
+applies to:
+
+- **credit rewards**: setting a `currency` reward, or changing a custom quest that pays credits in any way
+  (objectives, text, position, deletion). Creative-only authors are told to ask an operator;
+- **`/neroquests manual complete`** on a custom quest: Creative mode alone cannot tick `manual`
+  objectives.
+
+The editor lock still beats this rule for everyone below level 4.
 
 Losing the right mid-edit (leaving Creative, being de-opped, removed from the list, a lock) takes effect
 at once: the next edit is refused, and within a second the player's book is told they may no longer edit.
@@ -41,9 +53,9 @@ a command-block minecart or a function. Output goes to you only and never names 
 | `/neroquests editor deny <player>` | 3 | Remove them |
 | `/neroquests editor check <player>` | 3 | Say whether that player is on the list |
 | `/neroquests editor list` | 3 | How many players are on the list, whether the editor is locked, and whether *you* are on it |
-| `/neroquests editor lock` | 4 | Freeze authoring for everyone below level 4 (for a finished quest set) |
+| `/neroquests editor lock` | 4 | Freeze authoring for everyone below level 4 (for a finished quest set) — also `custom delete` and `manual complete` on custom quests by level-3 players; the console keeps working |
 | `/neroquests editor unlock` | 4 | Reopen it |
-| `/neroquests custom export [<chapter>]` | 3 | Write custom quests as a datapack folder (see below) |
+| `/neroquests custom export [<chapter>]` | 3 | Write custom quests as a pack template outside `datapacks/` (see below) |
 | `/neroquests custom import <folder> [--dry-run]` | 4 | Copy a quest-pack folder into the custom store |
 | `/neroquests custom delete <id> [confirm]` | 3 | Delete a custom chapter (with all its quests) or one quest |
 
@@ -60,15 +72,25 @@ already handed out stay with the players, and rewards still owed to someone are 
 | --- | --- | --- | --- |
 | `customQuestMaxTotal` | 500 | 0–5000 | Custom quests per world |
 | `customChapterMax` | 20 | 0–200 | Custom chapters per world |
-| `customRewardMaxStacks` | 9 | 0–9 | Item-stack rewards per quest (each at most one full stack) |
+| `customRewardMaxStacks` | 9 | 0–9 | Item-stack and loot-table rewards per quest together (each item reward at most one full stack; each loot table one slot) |
 | `customRewardMaxXp` | 500 | 0–100000 | Experience per completion |
 | `customRewardMaxCurrency` | 1000 | 0–1000000 | Credits per completion (through the economy's budgeted payouts with NeroEconomy) |
 | `customRewardsEscrowed` | `false` | — | Escrow mode, below |
+| `customLootTablePrefixes` | `minecraft:chests/,minecraft:gameplay/fishing` | — | Loot tables a custom quest may roll: ids starting with one of these comma-separated prefixes. Empty = none. Checked when the reward is set and again at payout |
+| `customCurrencyDailyCap` | 2000 | 0–1000000000 | Credits all custom quests together may pay in this world per UTC day (0 = no cap). Past it a payout is reduced or withheld and the player is told |
+| `customRewardsPerPlayerDaily` | 20 | 0–10000 | Paid custom-quest completions one player may receive per UTC day (0 = no limit). Later completions that day still complete, without rewards, and the player is told |
 
 Fixed limits: at most 12 objectives and 9 rewards per quest; objective counts 1 to 1,000,000; titles 64
 characters, descriptions 512, manual labels 64; node positions −512 to 512; at most 16 prerequisites;
 repeat cooldowns from 60 seconds to 30 days. Each author is also rate-limited (20 edits a second,
-200 a minute), and manual completions to 10 a minute per person.
+200 a minute), and manual completions to 10 a minute per person. Editor requests are checked for
+permission and rate limit **before** the server reads their content; past 40 a second per player they are
+dropped unread, and refusals are answered at most twice a second. While a player's kept-rewards queue is
+full, `manual complete` on custom quests is refused for them, and custom-quest rewards never push a
+player's other kept rewards (or an author's escrow refund) out of that queue.
+
+The daily per-player tally is held in memory only (the player's game UUID and a count for the current UTC
+day), never saved, and starts again at UTC midnight, on restart, and after an erasure request.
 
 Custom quests may reward items, a loot table, experience and credits — **never** a progression gate,
 faction standing or a mod hook. They may depend on NeroQuests' own quests, on pack quests and on other
@@ -85,23 +107,31 @@ servers that let non-operators author:
   player is told, and so is the author if online. Experience and credits are unaffected.
 - Changing the item rewards or deleting the quest **refunds** what is left to the author — into their
   inventory, or kept for them (also while offline) and delivered on their next join. If the author's
-  data was erased, the refund goes to whoever made the change.
-- Loot-table rewards are refused in escrow mode (random loot cannot be deposited).
+  data was erased, the deposit is **discarded** (only the item count is logged) — it is never handed to
+  whoever happened to change or delete the quest.
+- Loot-table rewards are refused in escrow mode (random loot cannot be deposited), and a custom quest
+  saved with a loot table before escrow was switched on pays nothing for it while escrow is on.
 - A custom quest saved before escrow was switched on pays no items until it is re-saved with a deposit.
 
 ## Exporting and importing
 
-`/neroquests custom export [<chapter>]` writes `datapacks/neroquests_custom_export/` in the world folder:
-the chapters and quests as ordinary quest-pack JSON in the namespace `custom_export`, plus
+`/neroquests custom export [<chapter>]` writes a **template** to `neroquests_exports/<UTC date-time>/` in the
+world folder — deliberately *outside* `datapacks/`, so the world never loads it by itself (a loaded copy
+would sit next to the custom originals and pay every reward twice). It holds a `pack.mcmeta`, the
+chapters and quests as ordinary quest-pack JSON in the namespace `custom_export`, plus
 `assets/custom_export/lang/en_us.json` holding every title, description and manual label under
 translation keys (`quest.custom_export.<chapter>.<quest>.title` and so on). It contains **no author
 information**. Repeatable quests become one-off quests (packs cannot repeat), and a reference to another
 chapter's custom quest or to another pack's quest will not load as written; the command tells you how
 many there were.
 
-To turn custom quests into a real pack: move `data/` into a datapack or a mod, move `assets/` into a
-resource pack or the same mod (a datapack cannot carry language files), rename the namespace if you
-like, delete the custom originals, then `/reload`.
+To turn custom quests into a real pack (the promotion path):
+
+1. Rename the namespace `custom_export` to your own (folder names and the ids inside the files).
+2. Move `data/` into a datapack or a mod, and `assets/` into a resource pack or the same mod (a datapack
+   cannot carry language files).
+3. Delete the custom originals (`/neroquests custom delete <chapter>`), so nothing exists twice.
+4. `/reload`.
 
 `/neroquests custom import <folder> [--dry-run]` goes the other way: it reads quest-pack JSON from
 `datapacks/<folder>/`, validates it exactly as a pack load would, and copies every chapter and the quests
@@ -119,7 +149,8 @@ like the quest progress file (see [Data storage](Data-Storage.md)):
   prerequisites, objectives, rewards, repeat setting, timestamps, escrow counts);
 - for each quest, `created_by`: the **author's game UUID**, so the author can be shown as "you" and their
   data exported and erased. It is never shown as a name — everyone else sees "another player";
-- the editor allow-list (game UUIDs) and the lock.
+- the editor allow-list (the **game UUIDs** of allow-listed players — the only other player identifier in
+  this file) and the lock.
 
 `/neroquests export <player>` includes the quests that player authored (with their own titles and
 descriptions) and whether they are on the allow-list. Erasure (`/neroland data erase`) clears

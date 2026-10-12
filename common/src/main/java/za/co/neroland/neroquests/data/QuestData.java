@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.data;
 import za.co.neroland.nerolandcore.data.PlayerDataErasure;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.custom.CustomQuestState;
+import za.co.neroland.neroquests.custom.CustomRewardPolicy;
 import za.co.neroland.neroquests.quest.reward.CurrencyPayouts;
 
 /**
@@ -34,6 +35,8 @@ public final class QuestData {
             state.backupNow(server);
             // D1: custom quests they authored keep existing with created_by cleared; they leave the editor
             // allow-list. The store's backup is refreshed in the same request.
+            // J2: their in-memory custom-payout tally for today goes as well.
+            CustomRewardPolicy.BUDGET.forget(uuid);
             CustomQuestState custom = CustomQuestState.get(server);
             if (custom.erase(uuid)) {
                 custom.backupNow(server);

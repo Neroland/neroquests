@@ -32,6 +32,7 @@ import za.co.neroland.neroquests.command.AdminActions;
 import za.co.neroland.neroquests.command.ReloadCheckSections;
 import za.co.neroland.neroquests.data.QuestProgress;
 import za.co.neroland.neroquests.data.QuestProgressState;
+import za.co.neroland.neroquests.network.EditorRequests;
 import za.co.neroland.neroquests.network.QuestSync;
 import za.co.neroland.neroquests.quest.Chapter;
 import za.co.neroland.neroquests.quest.EditorPermissions;
@@ -111,6 +112,8 @@ public final class CustomQuests {
     public static void serverStopped() {
         BURST.clear();
         MINUTE.clear();
+        CustomRewardPolicy.BUDGET.clear();
+        EditorRequests.serverStopped();
         repeats = Map.of();
         CustomContent.reset();
         EditorSync.serverStopped();
@@ -123,16 +126,30 @@ public final class CustomQuests {
      * command that has already passed its own trusted-source check ({@code player} may then be null for the
      * console).
      */
-    public record Actor(MinecraftServer server, ServerPlayer player, boolean admin) {
+    public record Actor(MinecraftServer server, ServerPlayer player, boolean admin, boolean admitted) {
 
-        /** A player using the editor. */
+        /** A player using the editor (authorised and rate-limited by this call). */
         public static Actor of(ServerPlayer player) {
-            return new Actor(player.level().getServer(), player, false);
+            return new Actor(player.level().getServer(), player, false, false);
+        }
+
+        /**
+         * J2 (RT-02): a player whose request {@link za.co.neroland.neroquests.network.EditorRequests} has already
+         * authorised and rate-limited in the same server-thread task, <em>before</em> decoding its body; the
+         * pipeline then neither re-asks nor spends a second token. Only {@code EditorRequests} creates these.
+         */
+        public static Actor admitted(ServerPlayer player) {
+            return new Actor(player.level().getServer(), player, false, true);
         }
 
         /** An admin command (console or a trusted operator). */
         public static Actor admin(MinecraftServer server, ServerPlayer player) {
-            return new Actor(server, player, true);
+            return new Actor(server, player, true, false);
+        }
+
+        /** RT-03: may this actor touch quests that pay credits (admin, or a privileged player)? */
+        boolean privileged() {
+            return admin || EditorPermissions.isPrivileged(player);
         }
 
         Optional<UUID> id() {
@@ -416,10 +433,11 @@ public final class CustomQuests {
     }
 
     /**
-     * Replace a custom quest's rewards: {@code item} (one stack each, at most {@code customRewardMaxStacks}),
-     * {@code loot_table} (a loaded table), {@code xp} (≤ {@code customRewardMaxXp} in total) and
-     * {@code currency} (credits, ≤ {@code customRewardMaxCurrency} in total). Never gate, reputation or
-     * mod_hook; at most 9 rewards.
+     * Replace a custom quest's rewards: {@code item} (one stack each) and {@code loot_table} (a loaded table under
+     * one of the {@code customLootTablePrefixes}) — together at most {@code customRewardMaxStacks} — {@code xp}
+     * (≤ {@code customRewardMaxXp} in total) and {@code currency} (credits, ≤ {@code customRewardMaxCurrency} in
+     * total; only for a privileged author, see {@link EditorPermissions#decidePrivileged}). Never gate,
+     * reputation or mod_hook; at most 9 rewards.
      *
      * <p><b>Escrow</b> ({@code customRewardsEscrowed=true}): when the item rewards change, the author's
      * remaining deposit is refunded and {@code escrowCopies} (1..64) copies of every item reward are taken
@@ -544,6 +562,12 @@ public final class CustomQuests {
         if (!change.result().ok()) {
             return change.result();
         }
+        // J2 (RT-03): a quest that pays credits — before or after this change — is changed only by a privileged
+        // author (operator level or allow-list), never by Creative mode alone.
+        Optional<Identifier> paying = touchesCurrency(state, preview);
+        if (paying.isPresent() && !actor.privileged()) {
+            return EditResult.error(EditResult.CURRENCY_DENIED, paying.get().toString());
+        }
         Optional<EditResult> invalid = previewRejects(server, preview, change.result().id().orElse(null));
         if (invalid.isPresent()) {
             return invalid.get();
@@ -558,11 +582,38 @@ public final class CustomQuests {
         return change.result();
     }
 
-    /** The store changed: re-validate the definitions and re-sync everyone (at the end of the tick). */
+    /**
+     * The store changed: re-validate the definitions and re-sync everyone — coalesced (J2, RT-09): the resend to
+     * every player happens at most once a second however many edits arrive.
+     */
     static void changed(MinecraftServer server) {
         QuestDefinitions.customChanged(server);
-        QuestSync.markDefinitionsDirtyAll();
-        QuestSync.markAllProgressDirty();
+        QuestSync.markCustomChanged();
+    }
+
+    /**
+     * The first quest whose entry differs between {@code before} and {@code after} (added, removed or changed) and
+     * that pays {@code currency} on either side, or empty. Pure over the two stores.
+     */
+    static Optional<Identifier> touchesCurrency(CustomQuestState before, CustomQuestState after) {
+        Set<Identifier> ids = new LinkedHashSet<>(before.quests().keySet());
+        ids.addAll(after.quests().keySet());
+        for (Identifier id : ids) {
+            Optional<CustomQuest> old = before.quest(id);
+            Optional<CustomQuest> now = after.quest(id);
+            if (old.equals(now)) {
+                continue;
+            }
+            if (paysCurrency(old) || paysCurrency(now)) {
+                return Optional.of(id);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean paysCurrency(Optional<CustomQuest> quest) {
+        return quest.isPresent() && quest.get().rewards().orElse(List.of()).stream()
+                .anyMatch(CurrencyReward.class::isInstance);
     }
 
     /**
@@ -571,9 +622,11 @@ public final class CustomQuests {
      */
     private static Optional<EditResult> authorise(Actor actor, Identifier subject) {
         ServerPlayer player = actor.player();
-        boolean authorised = !actor.admin() && player != null && EditorPermissions.canAuthor(player);
+        // An admitted request was authorised and charged by EditorRequests a moment ago, in this same task.
+        boolean trusted = actor.admin() || (actor.admitted() && player != null);
+        boolean authorised = !trusted && player != null && EditorPermissions.canAuthor(player);
         Object key = player == null ? null : player.getUUID();
-        Optional<String> refusal = EditGate.refusal(actor.admin(), authorised, key, System.currentTimeMillis(),
+        Optional<String> refusal = EditGate.refusal(trusted, authorised, key, System.currentTimeMillis(),
                 BURST, MINUTE, subject);
         if (refusal.isEmpty()) {
             return Optional.empty();
@@ -583,6 +636,18 @@ public final class CustomQuests {
             return Optional.of(EditResult.error(reason));
         }
         return Optional.of(EditResult.error(reason, subject.toString()));
+    }
+
+    /**
+     * J2 (RT-02): the cheap front door for an editor packet, asked by {@code EditorRequests} <em>before</em> the
+     * body is decoded — authorisation re-derived now, then the per-player buckets (one token). Empty when the
+     * request may go on (as an {@link Actor#admitted} actor), else the refusal key ({@link EditResult#DENIED} or
+     * {@link EditResult#RATE_LIMITED}).
+     */
+    public static Optional<String> admit(ServerPlayer player) {
+        boolean authorised = player != null && EditorPermissions.canAuthor(player);
+        return EditGate.refusal(false, authorised, player == null ? null : player.getUUID(),
+                System.currentTimeMillis(), BURST, MINUTE, null);
     }
 
     /** The open gates of the acting player ({@link AuthorVisibility#EVERYTHING} for the console). */
@@ -629,7 +694,9 @@ public final class CustomQuests {
         if (cleaned.isEmpty()) {
             return Optional.of(EditResult.error(EditResult.TEXT_TOO_LONG, Integer.toString(TextSanitizer.TITLE_MAX)));
         }
-        return cleaned.get().isEmpty() ? Optional.of(EditResult.error(EditResult.TITLE_EMPTY)) : Optional.empty();
+        // J2 (RT-13): a title that is blank once fillers and stray marks are gone counts as empty.
+        return TextSanitizer.hasVisible(cleaned.get()) ? Optional.empty()
+                : Optional.of(EditResult.error(EditResult.TITLE_EMPTY));
     }
 
     private static Optional<EditResult> checkIcon(Identifier icon) {
@@ -686,7 +753,7 @@ public final class CustomQuests {
             }
             if (objective instanceof ManualObjective manual) {
                 Optional<String> label = TextSanitizer.cleanWithin(manual.label(), TextSanitizer.LABEL_MAX);
-                if (label.isEmpty() || label.get().isEmpty()) {
+                if (label.isEmpty() || !TextSanitizer.hasVisible(label.get())) {
                     return Optional.of(EditResult.error(EditResult.OBJECTIVE_LABEL, position,
                             Integer.toString(TextSanitizer.LABEL_MAX)));
                 }
@@ -704,6 +771,11 @@ public final class CustomQuests {
 
     /** The reward rules with translatable keys (types, count, caps, ids). */
     static Optional<EditResult> checkRewards(MinecraftServer server, List<RewardSpec> rewards, CustomLimits limits) {
+        return checkRewards(server, rewards, limits, CustomRewardPolicy.lootPrefixes());
+    }
+
+    static Optional<EditResult> checkRewards(MinecraftServer server, List<RewardSpec> rewards, CustomLimits limits,
+                                             List<String> lootPrefixes) {
         if (rewards == null) {
             return Optional.of(EditResult.error(EditResult.BAD_REQUEST));
         }
@@ -721,6 +793,13 @@ public final class CustomQuests {
             }
             if (reward instanceof ItemReward) {
                 stacks++;
+            } else if (reward instanceof LootTableReward loot) {
+                // J2 (RT-04): a roll takes a stack slot and must name an allowed table family.
+                stacks++;
+                if (!CustomRewardPolicy.lootTableAllowed(lootPrefixes, loot.table())) {
+                    return Optional.of(EditResult.error(EditResult.REWARD_LOOT_PREFIX, Integer.toString(index + 1),
+                            loot.table().toString()));
+                }
             } else if (reward instanceof XpReward experience) {
                 xp += experience.amount();
             } else if (reward instanceof CurrencyReward money) {
@@ -860,13 +939,14 @@ public final class CustomQuests {
     }
 
     /**
-     * Return a quest's remaining escrow: to its author (inventory, the rest through the owed queue — also when
-     * they are offline), or, when the author is unknown (erased), to the acting player. With neither (a console
-     * change to an author-less quest) the deposit is discarded and only that count is logged.
+     * Return a quest's remaining escrow to its author (inventory, the rest through the owed queue — also when
+     * they are offline; refund entries are never evicted by custom-quest rewards). When the author is unknown
+     * (erased) the deposit is discarded and only that count is logged (J2, RT-11): it is never handed to whoever
+     * happened to edit or delete the quest.
      */
     private static void refund(Actor actor, CustomQuest quest, List<RewardSpec> rewards) {
         MinecraftServer server = actor.server();
-        Optional<UUID> recipient = quest.createdBy().isPresent() ? quest.createdBy() : actor.id();
+        Optional<UUID> recipient = quest.createdBy();
         int discarded = 0;
         for (Map.Entry<Integer, ItemReward> entry : itemRewards(rewards).entrySet()) {
             int copies = quest.escrowAt(entry.getKey().intValue());
@@ -886,8 +966,7 @@ public final class CustomQuests {
                 remaining = OwedDelivery.insert(online, item, total, DataComponentPatch.EMPTY);
             }
             if (remaining > 0) {
-                OwedDelivery.keepItem(server, recipient.get(), online, item, remaining, DataComponentPatch.EMPTY,
-                        quest.id());
+                OwedDelivery.keepRefund(server, recipient.get(), online, item, remaining, quest.id());
             }
         }
         if (discarded > 0) {

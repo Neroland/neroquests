@@ -3,6 +3,7 @@ package za.co.neroland.neroquests.network;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -22,10 +23,12 @@ import za.co.neroland.neroquests.custom.EditorSync;
 import za.co.neroland.neroquests.link.QuestLinkAlerts;
 import za.co.neroland.neroquests.platform.Services;
 import za.co.neroland.neroquests.quest.Chapter;
+import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.QuestSource;
 import za.co.neroland.neroquests.quest.engine.QuestEngine;
+import za.co.neroland.neroquests.quest.objective.QuestCompleteObjective;
 
 /**
  * The one server-side entry point for pushing quest state to clients, so every call site — the
@@ -85,6 +88,12 @@ public final class QuestSync {
 
     private static final Set<UUID> PROGRESS_DIRTY = new LinkedHashSet<>();
     private static boolean progressDirtyAll;
+
+    /** J2 (RT-09): the shortest gap between two everyone-resyncs caused by custom-quest edits. */
+    public static final long CUSTOM_RESYNC_MILLIS = 1_000L;
+
+    private static boolean customPending;
+    private static long lastCustomResync = Long.MIN_VALUE / 2;
 
     private QuestSync() {
     }
@@ -155,10 +164,33 @@ public final class QuestSync {
     }
 
     /**
+     * J2 (RT-09): the custom-quest store changed. Everyone's definitions and progress are re-sent, but at most
+     * once per {@value #CUSTOM_RESYNC_MILLIS} ms however many edits arrive (the first edit after a quiet second
+     * goes out at the end of its tick; later ones are folded into the next due resync).
+     */
+    public static void markCustomChanged() {
+        customPending = true;
+    }
+
+    /** Whether a coalesced custom resync may go out now (pure). */
+    static boolean customResyncDue(long last, long now) {
+        return now - last >= CUSTOM_RESYNC_MILLIS || now < last;
+    }
+
+    /**
      * Send what this tick marked dirty: definitions (only to players whose visible set actually changed),
      * then progress — at most one of each per player per tick. Called at the end of every server tick.
      */
     public static void flush(MinecraftServer server) {
+        if (customPending) {
+            long now = System.currentTimeMillis();
+            if (customResyncDue(lastCustomResync, now)) {
+                customPending = false;
+                lastCustomResync = now;
+                definitionsDirtyAll = true;
+                progressDirtyAll = true;
+            }
+        }
         if (definitionsDirtyAll || !DEFINITIONS_DIRTY.isEmpty()) {
             boolean all = definitionsDirtyAll;
             Set<UUID> marked = Set.copyOf(DEFINITIONS_DIRTY);
@@ -200,6 +232,8 @@ public final class QuestSync {
         definitionsDirtyAll = false;
         PROGRESS_DIRTY.clear();
         progressDirtyAll = false;
+        customPending = false;
+        lastCustomResync = Long.MIN_VALUE / 2;
     }
 
     // --- internals ----------------------------------------------------------
@@ -222,6 +256,7 @@ public final class QuestSync {
                 visible.add(quest.id());
             }
         }
+        hideUnseenReferences(definitions, visible);
         // D2/E1: the receiving player's own editor block (can_author, caps, the quests they wrote).
         JsonObject editorInfo = EditorSync.info(server, player);
         boolean canAuthor = editorInfo.get(EditorSync.CAN_AUTHOR).getAsBoolean();
@@ -264,6 +299,42 @@ public final class QuestSync {
         SENT_VIEW.put(id, Integer.valueOf(view));
         // G1: "A new chapter appeared" (fixed text, deduped) when a pack/custom chapter joins this view.
         QuestLinkAlerts.chaptersVisible(id, packOrCustomShown);
+    }
+
+    /**
+     * J2 (RT-12): a custom quest names its prerequisites and {@code quest_complete} targets by id, and its author
+     * may have seen a gated quest this viewer cannot. So a custom quest that references a loaded quest missing from
+     * {@code visible} is taken out of {@code visible} as well (repeated until stable, since custom quests may
+     * reference each other): the viewer gets neither the hidden id nor a quest they could not progress. Pure.
+     */
+    static void hideUnseenReferences(Map<Identifier, Quest> definitions, Set<Identifier> visible) {
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (Iterator<Identifier> it = visible.iterator(); it.hasNext();) {
+                Quest quest = definitions.get(it.next());
+                if (quest != null && quest.source() == QuestSource.CUSTOM
+                        && referencesUnseen(quest, definitions, visible)) {
+                    it.remove();
+                    changed = true;
+                }
+            }
+        }
+    }
+
+    private static boolean referencesUnseen(Quest quest, Map<Identifier, Quest> definitions, Set<Identifier> visible) {
+        for (Identifier prerequisite : quest.prerequisites()) {
+            if (definitions.containsKey(prerequisite) && !visible.contains(prerequisite)) {
+                return true;
+            }
+        }
+        for (ObjectiveSpec objective : quest.objectives()) {
+            if (objective instanceof QuestCompleteObjective complete && definitions.containsKey(complete.quest())
+                    && !visible.contains(complete.quest())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The encoded quest entries for this server, rebuilt only when the definitions were re-read. */

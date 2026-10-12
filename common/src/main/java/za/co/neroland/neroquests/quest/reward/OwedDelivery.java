@@ -80,6 +80,26 @@ public final class OwedDelivery {
         }
     }
 
+    /**
+     * Keep an escrow refund of {@code count} plain {@code item}s for a custom quest's author (J2, RT-10): queued
+     * with reason {@link QuestProgressState#REASON_ESCROW_REFUND}, which custom-quest rewards can never evict.
+     */
+    public static void keepRefund(MinecraftServer server, UUID playerId, ServerPlayer online, Item item, int count,
+                                  Identifier source) {
+        if (count <= 0) {
+            return;
+        }
+        QuestProgressState state = QuestProgressState.get(server);
+        OwedReward entry = OwedReward.item(state.nextRequestKey(ITEM_KEY_PREFIX, source),
+                BuiltInRegistries.ITEM.getKey(item), count, new CompoundTag(), QuestProgressState.REASON_ESCROW_REFUND,
+                source, System.currentTimeMillis());
+        CurrencyPayouts.owe(state, playerId, online, entry);
+        if (online != null && !online.hasDisconnected()) {
+            online.sendSystemMessage(Component.translatable("message.neroquests.reward_kept_items",
+                    Integer.valueOf(count), item.getName(new ItemStack(item))));
+        }
+    }
+
     /** Keep {@code points} of experience for the player and tell them, if they are here to be told. */
     public static void keepXp(MinecraftServer server, UUID playerId, ServerPlayer online, int points,
                               Identifier source) {
@@ -227,12 +247,23 @@ public final class OwedDelivery {
                 }
                 continue;
             }
-            int taken = Math.max(0, Math.min(amount, receiver.acceptItems(entry.item(), amount, entry.components())));
+            // J2 (RT-17): items too leave the queue before they are handed over; what does not fit (or everything,
+            // if the hand-over fails) is put back in the same place. No caller — on whatever thread — can see the
+            // entry while it is being delivered, so it can never be handed over twice.
+            int index = state.takeOwedByKey(playerId, entry.requestKey());
+            if (index < 0) {
+                continue; // already settled by someone else
+            }
+            int taken = 0;
+            try {
+                taken = Math.max(0, Math.min(amount, receiver.acceptItems(entry.item(), amount, entry.components())));
+            } finally {
+                int left = amount - taken;
+                state.settleTaken(playerId, index, entry, left > 0 ? entry.withAmount(left) : null);
+            }
             if (taken <= 0) {
                 continue;
             }
-            int left = amount - taken;
-            state.replaceOwedByKey(playerId, entry.requestKey(), left > 0 ? entry.withAmount(left) : null);
             delivered.add(new Delivered(OwedReward.Kind.ITEM, entry.item(), taken));
         }
         return delivered;

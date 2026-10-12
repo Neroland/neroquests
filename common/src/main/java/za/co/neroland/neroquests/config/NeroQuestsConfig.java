@@ -108,6 +108,23 @@ public final class NeroQuestsConfig {
                     + "inventory, refunded when changed or deleted) and are paid from that deposit; loot-table "
                     + "rewards are refused. For servers that let non-operators author quests.");
 
+    public static final ConfigValue<Integer> CUSTOM_CURRENCY_DAILY_CAP = SCHEMA.intRange(
+            "customCurrencyDailyCap", 2000, 0, 1000000000, true,
+            "Most credits custom (editor-made) quests may pay out in this world per UTC day, all players "
+                    + "together (0 = no world-wide cap). A payout past the cap is reduced or withheld and the "
+                    + "player is told.");
+
+    public static final ConfigValue<Integer> CUSTOM_REWARDS_PER_PLAYER_DAILY = SCHEMA.intRange(
+            "customRewardsPerPlayerDaily", 20, 0, 10000, true,
+            "Most paid completions of custom (editor-made) quests one player may receive per UTC day (0 = no "
+                    + "limit). Further completions that day still complete but pay nothing; the player is told.");
+
+    public static final ConfigValue<String> CUSTOM_LOOT_TABLE_PREFIXES = SCHEMA.string(
+            "customLootTablePrefixes", "minecraft:chests/,minecraft:gameplay/fishing", true,
+            "Comma-separated loot-table id prefixes a custom (editor-made) quest's loot_table reward may name. "
+                    + "Empty = no loot-table rewards for custom quests. Each loot_table reward also counts as one "
+                    + "slot toward customRewardMaxStacks.");
+
     // --- Data retention (POPIA/GDPR) ----------------------------------------
     public static final ConfigValue<Integer> RETENTION_DAYS = SCHEMA.intRange(
             "questDataRetentionDays", 0, 0, 3650, false,

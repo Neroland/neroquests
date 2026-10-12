@@ -3,7 +3,8 @@ package za.co.neroland.neroquests.network;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Supplier;
+import java.util.UUID;
+import java.util.function.Function;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -25,10 +26,11 @@ import za.co.neroland.neroquests.quest.ObjectiveSpec;
 import za.co.neroland.neroquests.quest.RewardSpec;
 
 /**
- * Server side of the quest editor's packets (E1): each handler hops onto the server thread, refuses a player
- * who is dead, spectating or gone, hands the request's fields to the matching {@link CustomQuests} method —
- * which re-derives the editor permission, rate-limits, checks immutability, validates and previews — and
- * answers with an {@link EditorPayloads.Result}.
+ * Server side of the quest editor's packets (E1): each handler passes the per-player inbound cap, hops onto
+ * the server thread, refuses a player who is dead, spectating or gone, re-derives the editor permission and
+ * spends a rate-limit token <em>before decoding anything</em> (J2, {@link EditorIntake}), then hands the
+ * request's fields to the matching {@link CustomQuests} method — which checks immutability, validates and
+ * previews — and answers with an {@link EditorPayloads.Result} (refusals at most twice a second).
  *
  * <p>The client's {@code can_author} hint plays no part here. Objective and reward JSON is decoded with the
  * same codecs the store uses (registry-aware), strictly: a list over the per-quest cap or an element that
@@ -37,69 +39,86 @@ import za.co.neroland.neroquests.quest.RewardSpec;
  */
 public final class EditorRequests {
 
+    /** The pre-decode limits (J2, RT-02). */
+    private static final EditorIntake INTAKE = new EditorIntake();
+
     private EditorRequests() {
     }
 
     public static void createChapter(EditorPayloads.CreateChapter p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.createChapter(player, p.title(), p.icon().orElse(null)));
+        run(player, p.requestId(), actor -> CustomQuests.createChapter(actor, p.title(), p.icon().orElse(null)));
     }
 
     public static void updateChapter(EditorPayloads.UpdateChapter p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.updateChapter(player, p.chapter(), p.title(),
+        run(player, p.requestId(), actor -> CustomQuests.updateChapter(actor, p.chapter(), p.title(),
                 p.icon().orElse(null), p.order()));
     }
 
     public static void deleteChapter(EditorPayloads.DeleteChapter p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.deleteChapter(player, p.chapter()));
+        run(player, p.requestId(), actor -> CustomQuests.deleteChapter(actor, p.chapter()));
     }
 
     public static void createQuest(EditorPayloads.CreateQuest p, ServerPlayer player) {
-        run(player, p.requestId(), () -> decode(player, p.objectivesJson(), ObjectiveSpec.CODEC,
+        run(player, p.requestId(), actor -> decode(player, p.objectivesJson(), ObjectiveSpec.CODEC,
                 CustomLimits.MAX_OBJECTIVES)
-                .map(objectives -> CustomQuests.createQuest(player, p.chapter(), p.title(), objectives, p.x(), p.y()))
+                .map(objectives -> CustomQuests.createQuest(actor, p.chapter(), p.title(), objectives, p.x(), p.y()))
                 .orElseGet(() -> EditResult.error(EditResult.BAD_REQUEST)));
     }
 
     public static void updateQuest(EditorPayloads.UpdateQuest p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.updateQuest(player, p.quest(), p.title(), p.description(),
+        run(player, p.requestId(), actor -> CustomQuests.updateQuest(actor, p.quest(), p.title(), p.description(),
                 p.icon().orElse(null)));
     }
 
     public static void deleteQuest(EditorPayloads.DeleteQuest p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.deleteQuest(player, p.quest()));
+        run(player, p.requestId(), actor -> CustomQuests.deleteQuest(actor, p.quest()));
     }
 
     public static void moveNode(EditorPayloads.MoveNode p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.moveNode(player, p.quest(), p.x(), p.y()));
+        run(player, p.requestId(), actor -> CustomQuests.moveNode(actor, p.quest(), p.x(), p.y()));
     }
 
     public static void setPrerequisites(EditorPayloads.SetPrerequisites p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.setPrerequisites(player, p.quest(), p.prerequisites()));
+        run(player, p.requestId(), actor -> CustomQuests.setPrerequisites(actor, p.quest(), p.prerequisites()));
     }
 
     public static void setObjectives(EditorPayloads.SetObjectives p, ServerPlayer player) {
-        run(player, p.requestId(), () -> decode(player, p.objectivesJson(), ObjectiveSpec.CODEC,
+        run(player, p.requestId(), actor -> decode(player, p.objectivesJson(), ObjectiveSpec.CODEC,
                 CustomLimits.MAX_OBJECTIVES)
-                .map(objectives -> CustomQuests.setObjectives(player, p.quest(), objectives))
+                .map(objectives -> CustomQuests.setObjectives(actor, p.quest(), objectives))
                 .orElseGet(() -> EditResult.error(EditResult.BAD_REQUEST)));
     }
 
     public static void setRewards(EditorPayloads.SetRewards p, ServerPlayer player) {
-        run(player, p.requestId(), () -> decode(player, p.rewardsJson(), RewardSpec.CODEC, CustomLimits.MAX_REWARDS)
-                .map(rewards -> CustomQuests.setRewards(player, p.quest(), rewards, p.escrowCopies()))
+        run(player, p.requestId(), actor -> decode(player, p.rewardsJson(), RewardSpec.CODEC, CustomLimits.MAX_REWARDS)
+                .map(rewards -> CustomQuests.setRewards(actor, p.quest(), rewards, p.escrowCopies()))
                 .orElseGet(() -> EditResult.error(EditResult.BAD_REQUEST)));
     }
 
     public static void setRepeatable(EditorPayloads.SetRepeatable p, ServerPlayer player) {
-        run(player, p.requestId(), () -> CustomQuests.setRepeatable(player, p.quest(), p.repeatable(),
+        run(player, p.requestId(), actor -> CustomQuests.setRepeatable(actor, p.quest(), p.repeatable(),
                 p.cooldownSeconds()));
+    }
+
+    /** Server stop: forget the intake buckets. */
+    public static void serverStopped() {
+        INTAKE.clear();
     }
 
     // --- shared ------------------------------------------------------------------------------------
 
-    private static void run(ServerPlayer player, int requestId, Supplier<EditResult> action) {
+    /**
+     * J2 (RT-02): the inbound cap first (excess dropped unanswered, nothing queued); then, on the server thread,
+     * the editor permission and the per-player buckets ({@link CustomQuests#admit}) and a server-wide slot —
+     * all <em>before</em> {@code action} decodes any JSON. A refusal is answered at most twice a second.
+     */
+    private static void run(ServerPlayer player, int requestId, Function<CustomQuests.Actor, EditResult> action) {
         MinecraftServer server = player.level().getServer();
         if (server == null) {
+            return;
+        }
+        UUID key = player.getUUID();
+        if (!INTAKE.inbound(key, System.currentTimeMillis())) {
             return;
         }
         // execute() runs at once when already on the server thread (NeoForge's enqueueWork), else queues.
@@ -107,17 +126,27 @@ public final class EditorRequests {
             if (player.hasDisconnected()) {
                 return;
             }
-            EditResult result;
-            if (!player.isAlive() || player.isSpectator()) {
-                result = EditResult.error(EditResult.DENIED);
-            } else {
-                try {
-                    result = action.get();
-                } catch (RuntimeException e) {
-                    NeroQuestsCommon.LOGGER.warn("[NeroQuests] An editor request failed ({}).",
-                            e.getClass().getSimpleName());
-                    result = EditResult.error(EditResult.BAD_REQUEST);
+            long now = System.currentTimeMillis();
+            Optional<String> refusal = !player.isAlive() || player.isSpectator()
+                    ? Optional.of(EditResult.DENIED)
+                    : CustomQuests.admit(player);
+            if (refusal.isEmpty() && !INTAKE.globalSlot(now)) {
+                refusal = Optional.of(EditResult.RATE_LIMITED);
+            }
+            if (refusal.isPresent()) {
+                if (INTAKE.replyToRefusal(key, now)) {
+                    Services.NETWORK.sendToPlayer(player,
+                            EditorPayloads.Result.of(requestId, EditResult.error(refusal.get())));
                 }
+                return;
+            }
+            EditResult result;
+            try {
+                result = action.apply(CustomQuests.Actor.admitted(player));
+            } catch (RuntimeException e) {
+                NeroQuestsCommon.LOGGER.warn("[NeroQuests] An editor request failed ({}).",
+                        e.getClass().getSimpleName());
+                result = EditResult.error(EditResult.BAD_REQUEST);
             }
             Services.NETWORK.sendToPlayer(player, EditorPayloads.Result.of(requestId, result));
         });

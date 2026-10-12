@@ -98,13 +98,25 @@ public final class CurrencyPayouts {
                             + "Install a mod that implements Neroland Core's currency contract (NeroEconomy) to enable them.");
             return false;
         }
-        if (CurrencyApi.deposit(playerId, resolveCurrency(currency), amount)) {
+        // J2 (RT-14): the Core path is journaled too. Its key is minted before the deposit and kept by any owed entry,
+        // so every retry — including one that later goes through NeroEconomy's idempotent payout — reuses it. Core's
+        // deposit itself takes no key: a crash mid-deposit is settled by not repeating it (counted on start-up).
+        String key = state.nextRequestKey(keyPrefix, source);
+        OwedReward attempt = new OwedReward(key, currency, amount, reason, source, System.currentTimeMillis(), 0);
+        PayoutJournal journal = journal(server);
+        journal.begin(new PayoutJournal.Entry(playerId, attempt, true));
+        boolean deposited;
+        try {
+            deposited = CurrencyApi.deposit(playerId, resolveCurrency(currency), amount);
+        } catch (RuntimeException e) {
+            deposited = false;
+        }
+        if (deposited) {
+            journal.end(key);
             return true;
         }
-        // A stable request key is minted now and stored with the entry, so every retry — including one
-        // that later goes through NeroEconomy's idempotent payout — reuses it.
-        owe(state, playerId, online, new OwedReward(state.nextRequestKey(keyPrefix, source), currency, amount,
-                reason, source, System.currentTimeMillis(), 0));
+        owe(state, playerId, online, attempt);
+        journal.end(key);
         tell(online, Component.translatable("message.neroquests.reward_owed", Long.valueOf(amount)));
         return false;
     }
@@ -268,6 +280,7 @@ public final class CurrencyPayouts {
             recoveredFor = server;
         }
         QuestProgressState state = QuestProgressState.get(server);
+        int[] unsettled = {0};
         int found = PayoutJournal.recover(journal(server), new PayoutJournal.Settler() {
             @Override
             public boolean retry(UUID player, OwedReward reward) {
@@ -280,7 +293,17 @@ public final class CurrencyPayouts {
                     owe(state, player, null, reward);
                 }
             }
+
+            @Override
+            public void unsettled(UUID player, OwedReward reward) {
+                unsettled[0]++;
+            }
         });
+        if (unsettled[0] > 0) {
+            NeroQuestsCommon.LOGGER.warn("[NeroQuests] {} currency deposit(s) through Neroland Core were interrupted by an "
+                    + "unclean stop; Core's deposit takes no request key, so they were not repeated (they may or may "
+                    + "not have been paid).", Integer.valueOf(unsettled[0]));
+        }
         if (found > 0) {
             NeroQuestsCommon.LOGGER.info("[NeroQuests] Settled {} payout(s) left in flight by an unclean stop.",
                     Integer.valueOf(found));

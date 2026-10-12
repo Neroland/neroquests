@@ -14,7 +14,9 @@ import za.co.neroland.nerolandcore.economy.CoreCurrencies;
 import za.co.neroland.nerolandcore.economy.CurrencyApi;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.compat.neroeconomy.EconomyCompat;
+import za.co.neroland.neroquests.custom.CustomRewardPolicy;
 import za.co.neroland.neroquests.data.QuestProgressState;
+import za.co.neroland.neroquests.quest.QuestSource;
 import za.co.neroland.neroquests.quest.RewardSpec;
 
 /**
@@ -107,8 +109,21 @@ public record CurrencyReward(Identifier currency, long amount, boolean oncePerWo
             }
             return;
         }
+        long payable = amount;
+        if (context.quest().source() == QuestSource.CUSTOM) {
+            // J2 (RT-03): custom quests share one world-wide daily credit allowance (customCurrencyDailyCap).
+            payable = CustomRewardPolicy.BUDGET.takeCredits(amount, System.currentTimeMillis(),
+                    CustomRewardPolicy.currencyDailyCap());
+            if (payable < amount && context.player() != null) {
+                context.player().sendSystemMessage(Component.translatable("message.neroquests.custom.currency_cap",
+                        Long.valueOf(payable), Long.valueOf(amount)));
+            }
+            if (payable <= 0L) {
+                return;
+            }
+        }
         // An owed reward still counts as claimed: it will be paid on retry.
-        CurrencyPayouts.pay(context.server(), context.playerId(), context.player(), currency, amount,
+        CurrencyPayouts.pay(context.server(), context.playerId(), context.player(), currency, payable,
                 EconomyCompat.REASON_QUEST, CurrencyPayouts.QUEST_KEY_PREFIX, context.quest().id());
     }
 

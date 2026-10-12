@@ -5,7 +5,9 @@ import java.util.Collection;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
@@ -19,6 +21,9 @@ import net.minecraft.world.phys.Vec3;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.config.NeroQuestsConfig;
+import za.co.neroland.neroquests.custom.CustomLimits;
+import za.co.neroland.neroquests.custom.CustomRewardPolicy;
+import za.co.neroland.neroquests.quest.QuestSource;
 import za.co.neroland.neroquests.quest.RewardSpec;
 
 /**
@@ -63,6 +68,18 @@ public record LootTableReward(Identifier table) implements RewardSpec {
     @Override
     public void grant(RewardContext context) {
         MinecraftServer server = context.server();
+        if (context.quest().source() == QuestSource.CUSTOM) {
+            // J2 (RT-05): random loot cannot be deposited, so in escrow mode a custom quest pays none — also when
+            // it was saved before escrow was switched on. RT-04: and only from the allowed table families.
+            if (CustomLimits.current().escrow()) {
+                tell(context, "message.neroquests.custom.escrow_loot_table");
+                return;
+            }
+            if (!CustomRewardPolicy.lootTableAllowed(CustomRewardPolicy.lootPrefixes(), table)) {
+                tell(context, "message.neroquests.custom.loot_table_not_allowed");
+                return;
+            }
+        }
         if (!exists(server, table)) {
             RewardLog.warnOnce("loot_table:" + table,
                     "[NeroQuests] Reward {} names loot table '{}', which is not loaded here; granting nothing "
@@ -100,6 +117,12 @@ public record LootTableReward(Identifier table) implements RewardSpec {
             *///?} else {
             player.drop(rest, false);
             //?}
+        }
+    }
+
+    private static void tell(RewardContext context, String key) {
+        if (context.player() != null) {
+            context.player().sendSystemMessage(Component.translatable(key).withStyle(ChatFormatting.GOLD));
         }
     }
 }

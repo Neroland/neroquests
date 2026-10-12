@@ -46,11 +46,16 @@ Put every key in `assets/<modid>/lang/en_us.json`.
   listed in a chapter with `"allow_server_scope": true`.
 - Want the chapter visible (greyed, with a badge) when your mod is missing? Set
   `"show_when_absent": true` on it. Otherwise nothing of your pack shows without your mod.
+- Never use the `neroquests` namespace. Only NeroQuests' own mod files may define quests there: a
+  **datapack** file in that namespace is dropped, and a datapack copy of one of NeroQuests' own quests is
+  ignored (the original loads), both reported in `/neroquests reload-check`.
 
 ## 4. Your own reward: `mod_hook`
 
 To do something only your mod can (unlock a page, refill a tank), ship a record gate and name it in a
-`neroquests:mod_hook` reward:
+`neroquests:mod_hook` reward. Ship the quest inside **your mod** — a `mod_hook` reward in a quest that
+comes from a world or server datapack is dropped (with a `reload-check` line), because a hook fires your
+mod's own effect and only your mod should be able to name it:
 
 ```text
 data/<modid>/neroland_gates/hook/<id>.json      { "scope": "player", "title": "…" }

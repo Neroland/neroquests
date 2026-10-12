@@ -12,7 +12,6 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
-import za.co.neroland.nerolandcore.progression.GateDefinitions;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.engine.SeenChannels;
 import za.co.neroland.neroquests.quest.objective.ContentIds;
@@ -73,9 +72,14 @@ public record ServerContentLookup(MinecraftServer server, Predicate<Identifier> 
                 .map(set -> set.size() > 0).orElse(Boolean.FALSE).booleanValue();
     }
 
+    /**
+     * J2 (RT-19): every syntactically valid gate id is accepted, whether or not a gate of that id exists, so the
+     * editor's answer can never be used to probe for hidden progression gates. A gate that does not exist is
+     * missing content at runtime (the objective is skipped, like any absent mod's content).
+     */
     @Override
     public boolean gate(Identifier id) {
-        return GateDefinitions.forServer(server).containsKey(id);
+        return id != null;
     }
 
     @Override

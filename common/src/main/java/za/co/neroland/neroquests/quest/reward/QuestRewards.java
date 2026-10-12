@@ -13,10 +13,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.custom.CustomRewardPolicy;
 import za.co.neroland.neroquests.data.QuestProgressState;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
 import za.co.neroland.neroquests.quest.QuestScope;
+import za.co.neroland.neroquests.quest.QuestSource;
 import za.co.neroland.neroquests.quest.QuestStates;
 import za.co.neroland.neroquests.quest.QuestText;
 import za.co.neroland.neroquests.quest.RewardSpec;
@@ -77,6 +79,18 @@ public final class QuestRewards {
         RewardContext context = RewardContext.of(completion);
         announce(context);
         if (completion.paysRewards()) {
+            Quest quest = completion.quest();
+            // J2 (RT-03): a recipient takes at most customRewardsPerPlayerDaily paid custom completions a UTC day.
+            if (quest.source() == QuestSource.CUSTOM && !quest.rewards().isEmpty()
+                    && !CustomRewardPolicy.BUDGET.admitRecipient(context.playerId(), System.currentTimeMillis(),
+                            CustomRewardPolicy.perPlayerDaily())) {
+                if (context.player() != null) {
+                    context.player().sendSystemMessage(Component.translatable(
+                            "message.neroquests.custom.daily_limit",
+                            Integer.valueOf(CustomRewardPolicy.perPlayerDaily())));
+                }
+                return;
+            }
             grantAll(context);
             return;
         }

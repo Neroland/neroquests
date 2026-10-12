@@ -59,6 +59,28 @@ public final class EditorPermissions {
         return !access.locked() || access.opLevel() >= LOCK_BYPASS_LEVEL;
     }
 
+    /**
+     * J2 (RT-03): the stricter rule for what Creative mode alone must not unlock — setting or changing
+     * {@code currency} rewards (or editing a quest that pays them) and ticking {@code manual} objectives.
+     * The player must pass {@link #decide} <em>and</em> hold permission level {@code editorMinOpLevel} or be on
+     * the allow-list. Creative players can already spawn items, so items and XP add nothing new; credits do.
+     */
+    public static boolean decidePrivileged(Access access) {
+        return decide(access) && (access.opLevel() >= access.minOpLevel() || access.onAllowList());
+    }
+
+    /** Whether {@code player} passes {@link #decidePrivileged} right now. Server thread only. */
+    public static boolean isPrivileged(ServerPlayer player) {
+        if (player == null) {
+            return false;
+        }
+        MinecraftServer server = player.level().getServer();
+        if (server == null) {
+            return false;
+        }
+        return decidePrivileged(accessOf(player, CustomQuestState.get(server)));
+    }
+
     /** Whether {@code player} may author quests right now. Server thread only. */
     public static boolean canAuthor(ServerPlayer player) {
         if (player == null) {

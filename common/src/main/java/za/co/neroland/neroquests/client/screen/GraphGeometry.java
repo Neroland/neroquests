@@ -3,27 +3,29 @@ package za.co.neroland.neroquests.client.screen;
 import java.util.Collection;
 
 /**
- * Pure geometry of the quest graph (E3): where a grid cell lands on screen, which node, edge handle or
- * dependency line is under the mouse, where a dragged node snaps to, and how far the canvas may pan. No game
- * classes, so every rule is unit-tested.
+ * Pure geometry of the quest graph (E3): node and edge-handle hit-testing, dependency-line hit-testing, where a
+ * dragged node snaps to and where a new quest finds a free cell. No game classes, so every rule is unit-tested.
  *
- * <p>Grid units are what chapters store ({@code x}/{@code y}); one unit is {@link #GRID} pixels, and a node is
- * a {@link #NODE}-pixel square whose top-left corner sits on the grid point. The edge handle is a small square
- * straddling a node's right edge, used to drag a new prerequisite link.
+ * <p>The graph lives in <em>world</em> pixels: grid cell ({@code x}, {@code y}) — what chapters store — has its
+ * node's top-left corner at world ({@code x * GRID}, {@code y * GRID}) and the node is a {@link #NODE}-pixel
+ * square. {@link GraphView} maps world pixels to the screen (pan and zoom); everything here that takes screen
+ * coordinates also takes the node's on-screen size, so hit-testing matches what is drawn at any zoom.
  */
 public final class GraphGeometry {
 
-    /** Pixels per grid unit. */
+    /** World pixels per grid unit. */
     public static final int GRID = 30;
-    /** Side of a node square. */
-    public static final int NODE = 22;
-    /** Inset of grid (0, 0) from the canvas corner. */
-    public static final int ORIGIN = 12;
-    /** Side of the edge handle. */
+    /** Side of a node square, in world pixels. */
+    public static final int NODE = 26;
+    /** World height reserved under a node for its title label. */
+    public static final int LABEL_HEIGHT = 12;
+    /** Widest a node label may get, in world pixels. */
+    public static final int LABEL_MAX = 96;
+    /** Side of the edge handle (screen pixels). */
     public static final int HANDLE = 6;
-    /** How close (pixels) the mouse must be to a dependency line to hit it. */
+    /** How close (screen pixels) the mouse must be to a dependency line to hit it. */
     public static final double LINE_HIT = 3.0D;
-    /** Extra pan room in edit mode, so a node can be dragged into empty space beside the graph. */
+    /** Extra pan room in edit mode (world pixels), so a node can be dragged into empty space beside the graph. */
     public static final int EDIT_SLACK = 2 * GRID;
     /** Grid cells per row when looking for a free slot for a new quest. */
     public static final int FREE_SLOT_ROW = 8;
@@ -31,44 +33,39 @@ public final class GraphGeometry {
     private GraphGeometry() {
     }
 
-    /** Screen x of a node's left edge. */
-    public static int nodeX(int canvasX, int panX, int gridX) {
-        return canvasX + ORIGIN + panX + gridX * GRID;
+    /** World x (or y) of grid cell {@code cell}'s node corner. */
+    public static int world(int cell) {
+        return cell * GRID;
     }
 
-    /** Screen y of a node's top edge. */
-    public static int nodeY(int canvasY, int panY, int gridY) {
-        return canvasY + ORIGIN + panY + gridY * GRID;
-    }
-
-    /** Whether ({@code mx}, {@code my}) is on the node whose top-left corner is ({@code nx}, {@code ny}). */
-    public static boolean inNode(double mx, double my, int nx, int ny) {
-        return mx >= nx && mx < nx + NODE && my >= ny && my < ny + NODE;
+    /** Whether ({@code mx}, {@code my}) is on the {@code size}-pixel node whose top-left corner is ({@code nx}, {@code ny}). */
+    public static boolean inNode(double mx, double my, int nx, int ny, int size) {
+        return mx >= nx && mx < nx + size && my >= ny && my < ny + size;
     }
 
     /** Left edge of a node's handle. */
-    public static int handleX(int nx) {
-        return nx + NODE - HANDLE / 2;
+    public static int handleX(int nx, int size) {
+        return nx + size - HANDLE / 2;
     }
 
     /** Top edge of a node's handle. */
-    public static int handleY(int ny) {
-        return ny + (NODE - HANDLE) / 2;
+    public static int handleY(int ny, int size) {
+        return ny + (size - HANDLE) / 2;
     }
 
     /** Whether ({@code mx}, {@code my}) is on the node's edge handle. Checked before {@link #inNode}. */
-    public static boolean inHandle(double mx, double my, int nx, int ny) {
-        int hx = handleX(nx);
-        int hy = handleY(ny);
+    public static boolean inHandle(double mx, double my, int nx, int ny, int size) {
+        int hx = handleX(nx, size);
+        int hy = handleY(ny, size);
         return mx >= hx - 1 && mx < hx + HANDLE + 1 && my >= hy - 1 && my < hy + HANDLE + 1;
     }
 
     /**
-     * The grid cell a node dragged so its top-left corner is at screen pixel {@code pixel} snaps to, clamped
-     * to {@code [min, max]} (the server's coordinate bounds from the editor block).
+     * The grid cell a node whose corner is at world pixel {@code world} snaps to, clamped to {@code [min, max]}
+     * (the server's coordinate bounds from the editor block).
      */
-    public static int snap(double pixel, int canvasOrigin, int pan, int min, int max) {
-        int cell = (int) Math.round((pixel - canvasOrigin - ORIGIN - pan) / GRID);
+    public static int snap(double world, int min, int max) {
+        int cell = (int) Math.round(world / GRID);
         return Math.max(min, Math.min(max, cell));
     }
 
@@ -85,28 +82,37 @@ public final class GraphGeometry {
     }
 
     /**
-     * Whether the point is on the dependency line between two node centres — but not on either node itself
-     * (clicking a node must stay a node click).
+     * Whether the point is within {@link #LINE_HIT} of the polyline {@code points} ({@code x0, y0, x1, y1, ...},
+     * screen pixels).
      */
-    public static boolean onLine(double px, double py, int fromNx, int fromNy, int toNx, int toNy) {
-        if (inNode(px, py, fromNx, fromNy) || inNode(px, py, toNx, toNy)) {
-            return false;
+    public static boolean onPolyline(double px, double py, int[] points) {
+        for (int index = 0; index + 3 < points.length; index += 2) {
+            if (distanceToSegment(px, py, points[index], points[index + 1], points[index + 2], points[index + 3])
+                    <= LINE_HIT) {
+                return true;
+            }
         }
-        double half = NODE / 2.0D;
-        return distanceToSegment(px, py, fromNx + half, fromNy + half, toNx + half, toNy + half) <= LINE_HIT;
+        return false;
     }
 
     /**
-     * The allowed pan range on one axis for a graph spanning grid {@code [minCell, maxCell]} in a view of
-     * {@code view} pixels: {@code [lo, hi]}. With {@code minCell = 0} and no slack this is exactly the
-     * original book's rule ({@code [min(0, view - graph), 0]}).
+     * The widest label (world pixels) node {@code index} can carry without running into a neighbour: the
+     * horizontal distance to the nearest node whose label row or body shares the label's band, less a small gap,
+     * capped at {@link #LABEL_MAX}. {@code xs}/{@code ys} are world corners of {@code count} nodes.
      */
-    public static int clampPan(int pan, int minCell, int maxCell, int view, boolean edit) {
-        int slack = edit ? EDIT_SLACK : 0;
-        int hi = -minCell * GRID;
-        int graph = maxCell * GRID + NODE + 24;
-        int lo = Math.min(hi, view - graph);
-        return Math.max(lo - slack, Math.min(hi + slack, pan));
+    public static int labelRoom(int index, int[] xs, int[] ys, int count) {
+        int room = LABEL_MAX + 4;
+        for (int other = 0; other < count; other++) {
+            if (other == index) {
+                continue;
+            }
+            int dy = ys[other] - ys[index];
+            // The other node's body or label overlaps this label's band (just under this node).
+            if (dy > -LABEL_HEIGHT && dy < NODE + LABEL_HEIGHT) {
+                room = Math.min(room, Math.abs(xs[other] - xs[index]));
+            }
+        }
+        return Math.max(0, Math.min(LABEL_MAX, room - 4));
     }
 
     /**

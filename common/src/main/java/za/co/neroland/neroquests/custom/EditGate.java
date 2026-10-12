@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import net.minecraft.resources.Identifier;
 
+import za.co.neroland.neroquests.quest.EditorPermissions;
 import za.co.neroland.neroquests.quest.QuestSource;
 import za.co.neroland.neroquests.quest.QuestSources;
 
@@ -71,15 +72,25 @@ public final class EditGate {
     }
 
     /**
-     * Who may tick a {@code manual} objective of a quest from {@code source}: an editor-authorised player
-     * (re-derived now) only on custom quests; spine and pack progress changes by hand stay with trusted
+     * Who may tick a {@code manual} objective of a quest from {@code source}: a privileged editor (re-derived now:
+     * {@link za.co.neroland.neroquests.quest.EditorPermissions#decidePrivileged}) only on custom quests; spine and pack progress changes by hand stay with trusted
      * operators (level 3 or the console), like grant/revoke/reset, and are counted.
      */
     public static boolean mayTickManual(QuestSource source, boolean authorised, boolean trustedAdmin) {
         if (trustedAdmin) {
             return true;
         }
+        // J2 (RT-03): "authorised" here is the privileged rule (operator level or allow-list); Creative alone is not.
         return source == QuestSource.CUSTOM && authorised;
+    }
+
+    /**
+     * J2 (RT-15): while the editor is locked, a <em>player</em> below permission level 4 may not run the level-3
+     * custom-quest admin paths ({@code custom delete}, {@code manual complete} on a custom quest) either. The
+     * console (not a player) keeps working.
+     */
+    public static boolean lockRefuses(boolean locked, boolean playerInvoker, int opLevel) {
+        return locked && playerInvoker && opLevel < EditorPermissions.LOCK_BYPASS_LEVEL;
     }
 
     /**

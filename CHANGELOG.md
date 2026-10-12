@@ -142,6 +142,12 @@ updating a world.
 
 ### Changed
 
+- Redesigned quest book: the graph opens fitted and centred, pans by drag or WASD/arrow keys and zooms
+  with the wheel (0.5x-1.5x, about the cursor) or the new zoom/fit buttons, with edge chevrons wherever the graph
+  continues. Nodes are larger with state styling (completed check, in-progress bar, pulsing available glow,
+  padlocked locked quests), titles under nodes and right-angled dependency lines with arrowheads. A header shows
+  the chapter and its progress, chapter rows show done/total bars, and quest details open in a drawer that slides
+  over the graph. Chapters with nothing discovered yet stay hidden until their first quest appears.
 - *Pressed and Powdered* and *Alloy Ambitions* are now hand-ins, so one item set no longer completes
   them on every alternate account.
 - `/neroquests` subcommands carry the operator check individually so `contracts` can be open to
@@ -204,7 +210,9 @@ updating a world.
   - `customQuestMaxTotal` = `500` (0–5000), `customChapterMax` = `20` (0–200);
   - `customRewardMaxStacks` = `9` (0–9), `customRewardMaxXp` = `500` (0–100000),
     `customRewardMaxCurrency` = `1000` (0–1000000);
-  - `customRewardsEscrowed` = `false`.
+  - `customRewardsEscrowed` = `false`;
+  - `customLootTablePrefixes` = `minecraft:chests/,minecraft:gameplay/fishing`,
+    `customCurrencyDailyCap` = `2000` (0–1000000000), `customRewardsPerPlayerDaily` = `20` (0–10000).
 
 ### Fixed (audit)
 
@@ -329,6 +337,48 @@ updating a world.
 - **The custom-quest store holds custom ids only.** Editor content is merged into the quest list only as
   `custom:` ids and never replaces a built-in or quest-pack definition, and a save file edited by hand to
   carry another id does not load it.
+- **Editor packets are checked before they are read.** The server re-derives the editor permission and
+  takes the rate-limit token *before* it decodes a request's objectives or rewards; past 40 editor
+  packets a second a player's requests are dropped unread, at most 200 edits a second are applied
+  server-wide, and refusals are answered at most twice a second. A flood from a client that may not edit
+  now costs almost nothing.
+- **Credits need more than Creative mode.** Creative mode alone still lets a player author, but only an
+  operator (`editorMinOpLevel`) or an allow-listed player may set `currency` rewards, change a custom
+  quest that pays credits, or tick `manual` objectives with `manual complete`.
+- **Daily limits for custom-quest payouts.** New settings `customCurrencyDailyCap` (credits all custom
+  quests together may pay per UTC day, default 2000, 0 = no cap) and `customRewardsPerPlayerDaily` (paid
+  custom completions per player per UTC day, default 20, 0 = no limit). The per-player tally is held in
+  memory only.
+- **Loot-table rewards of custom quests are bounded.** Each takes one `customRewardMaxStacks` slot and
+  must name a table under the new `customLootTablePrefixes` setting (default `minecraft:chests/`,
+  `minecraft:gameplay/fishing`), checked when set and at payout. While escrow mode is on, custom quests
+  pay no loot-table rewards, also when saved before escrow was switched on.
+- **`custom export` writes an inert template.** Exports go to `neroquests_exports/<UTC date-time>/` in
+  the world folder instead of `datapacks/`, so a `/reload` or restart can no longer load them next to the
+  originals and pay every reward twice.
+- **Datapacks cannot claim NeroQuests' namespace or a sibling's hooks.** `neroquests:` quests and chapters
+  load only from NeroQuests' own mod files: a datapack file there is dropped and a datapack copy of a
+  built-in quest is ignored (both reported in `reload-check`). `mod_hook` rewards in quests from a
+  datapack are dropped.
+- **Editor flooding of every player's sync is coalesced.** Definitions re-sync after custom-quest edits at
+  most once a second, and a `custom_event` objective's `event_scope` in a custom quest must be 1–64 id-like
+  characters.
+- **Kept rewards cannot be pushed out by editors.** Custom-quest rewards never evict a player's other kept
+  rewards or an author's escrow refund from the 64-entry queue, and `manual complete` on custom quests is
+  refused for a player whose queue is full.
+- **Escrow of an erased author is discarded**, never handed to whoever edits or deletes the quest.
+- **No hidden quest ids in custom quests.** A custom quest that requires, or has a `quest_complete`
+  objective for, a quest hidden from a player is not sent to that player. The editor accepts any
+  well-formed gate id in a `gate_open` objective, so its answer no longer reveals which hidden gates exist.
+- **Text hygiene.** Invisible filler characters (Hangul fillers, the braille blank and similar) and more
+  than two combining marks on one character are removed from custom titles, descriptions and labels; a
+  title that is blank afterwards is refused.
+- **Core currency deposits are journaled** like economy payouts; a deposit interrupted by a crash is not
+  repeated (Core's deposit takes no request key) and is counted in the log.
+- **The editor lock also covers level-3 players' `custom delete` and `manual complete` on custom quests**
+  (level 4 or the console only while locked).
+- **`claim_reward` from the companion app always runs on the server thread**, and kept items leave the
+  queue before they are handed over (put back if they do not fit), so a claim can never deliver twice.
 
 ### Build
 

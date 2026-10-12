@@ -332,10 +332,8 @@ final class BookEditor {
     }
 
     private Button button(Component label, Component tooltip, int x, int y, int w, Runnable action) {
-        return this.screen.add(Button.builder(label, ignored -> action.run())
-                .bounds(x, y, Math.max(8, w), BookLayout.ROW)
-                .tooltip(Tooltip.create(tooltip))
-                .build());
+        // Themed like the rest of the book (same Button behaviour, the book's frame language).
+        return this.screen.add(BookButton.create(label, tooltip, x, y, Math.max(8, w), BookLayout.ROW, action));
     }
 
     private Button button(String key, int x, int y, int w, Runnable action) {

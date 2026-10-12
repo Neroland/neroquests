@@ -34,6 +34,9 @@ public final class ClientQuestProgress {
 
     private static volatile Snapshot snapshot = Snapshot.EMPTY;
 
+    /** Bumped on every replace/clear, so the quest book can cache derived state until the next sync. */
+    private static volatile int generation;
+
     private ClientQuestProgress() {
     }
 
@@ -42,11 +45,13 @@ public final class ClientQuestProgress {
     /** Replace the mirror with the server's latest snapshot for this player. */
     public static void accept(QuestProgressPayload payload) {
         snapshot = new Snapshot(toMap(payload.own()), toMap(payload.server()));
+        generation++;
     }
 
     /** Drop everything. Called when the client leaves a world or server. */
     public static void clear() {
         snapshot = Snapshot.EMPTY;
+        generation++;
     }
 
     private static Map<Identifier, QuestProgress> toMap(java.util.List<QuestProgressPayload.Row> rows) {
@@ -61,6 +66,11 @@ public final class ClientQuestProgress {
     }
 
     // --- accessors ----------------------------------------------------------
+
+    /** A counter bumped by every progress sync (and clear); the book compares it to notice new progress. */
+    public static int generation() {
+        return generation;
+    }
 
     /**
      * The progress stored for {@code quest}, read from whichever section owns it — the player's

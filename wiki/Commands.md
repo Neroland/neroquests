@@ -112,6 +112,11 @@ identifiers.
 This is the same erasure `/neroland data erase <uuid>` performs across every Nero mod; use the Core
 command when the request covers the whole ecosystem, and this one when it is only about quests.
 
+Because it forgets the paid-reward record too, quests that are measured rather than counted (holding
+items, a dimension or structure, an open gate, completed quests) can pay that player again once they are
+back. To undo one quest without re-paying it, use `revoke <player> <quest>` instead, which keeps the
+record unless you add `--repay`.
+
 ## `list`
 
 ```text
@@ -203,11 +208,12 @@ Ticks every `manual` objective of `<quest>` for an **online** player (see
 prerequisites met — and not already complete. If its other objectives are done too it completes
 through the normal path and pays its rewards; otherwise it completes once they are.
 
-Who may run it is decided on the server each time: a player who may author quests (Creative mode,
-permission level `editorMinOpLevel`, or the editor allow-list, unless the editor is locked — see
-[Editor permissions](Editor-Permissions.md)), or the server console. Each person may tick at most 10
-a minute. Authors may tick **custom** quests only: on a built-in or quest-pack quest it takes a trusted
-operator (permission level 3 as a player, or the console), like `grant`. Each use is counted in the log as an admin action, never with names.
+Who may run it is decided on the server each time: a player with permission level `editorMinOpLevel`
+or on the editor allow-list — **Creative mode alone is not enough** — unless the editor is locked (then
+level 4 only; see [Editor permissions](Editor-Permissions.md)), or the server console. Each person may
+tick at most 10 a minute. Such players may tick **custom** quests only: on a built-in or quest-pack quest
+it takes a trusted operator (permission level 3 as a player, or the console), like `grant`. It is refused
+for a target whose kept-rewards queue is full, so it can never push out rewards they are still owed. Each use is counted in the log as an admin action, never with names.
 `<quest>` is a full id (`mymod:town/statue`); suggestions list the quests that have a manual objective.
 
 ## `export`
@@ -256,7 +262,7 @@ the settings they work with on [Editor permissions](Editor-Permissions.md). In s
 /neroquests editor check Steve          (level 3) -> on the list or not, no name echoed
 /neroquests editor list                 (level 3) -> count, lock state, whether you are on it
 /neroquests editor lock                 (level 4)
-/neroquests custom export               (level 3) -> datapacks/neroquests_custom_export/
+/neroquests custom export               (level 3) -> neroquests_exports/<date-time>/ (a template, not loaded)
 /neroquests custom import mypack --dry-run   (level 4)
 /neroquests custom delete custom:k3m7q2ab    (level 3), then again with confirm
 ```

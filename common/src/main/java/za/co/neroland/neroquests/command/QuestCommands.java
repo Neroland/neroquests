@@ -164,15 +164,24 @@ public final class QuestCommands {
     static final String DRY_RUN_FLAG = "--dry-run";
 
     /**
-     * C5/D2: may this source tick {@code manual} objectives? A player who may author quests (the full
-     * {@link EditorPermissions#canAuthor} rule: creative / operator level / allow-list, minus the lock), or the
-     * console under the same rule as the other mutating commands. Re-checked when the command runs.
+     * C5/D2: may this source tick {@code manual} objectives? A privileged editor
+     * ({@link EditorPermissions#isPrivileged}: operator level or allow-list — not Creative mode alone, J2 — minus
+     * the lock), or the console under the same rule as the other mutating commands. Re-checked when the command
+     * runs.
      */
     static boolean mayTickManual(CommandSourceStack source) {
         if (source.getEntity() instanceof ServerPlayer player) {
-            return EditorPermissions.canAuthor(player);
+            // J2 (RT-03): ticking manual objectives pays rewards on demand, so Creative mode alone is not enough —
+            // the operator level or the allow-list is (the privileged rule; the lock still beats all but level 4).
+            return EditorPermissions.isPrivileged(player);
         }
         return trustedAdmin(source);
+    }
+
+    /** J2 (RT-15): a player below level 4 while the editor is locked ({@link EditGate#lockRefuses}). */
+    private static boolean lockedOut(CommandSourceStack source, MinecraftServer server) {
+        return source.getEntity() instanceof ServerPlayer player
+                && EditGate.lockRefuses(CustomQuestState.get(server).isLocked(), true, EditorPermissions.opLevel(player));
     }
 
     /** Whether {@code quest} has at least one {@code manual} objective. */
@@ -454,10 +463,14 @@ public final class QuestCommands {
             return 0;
         }
         String questId = quest.id().toString();
-        boolean author = source.getEntity() instanceof ServerPlayer invoker && EditorPermissions.canAuthor(invoker);
+        boolean author = source.getEntity() instanceof ServerPlayer invoker && EditorPermissions.isPrivileged(invoker);
         if (!EditGate.mayTickManual(quest.source(), author, trustedAdmin(source))) {
             // J1: spine and pack progress is changed by hand only by trusted operators (counted below).
             source.sendFailure(Component.translatable("command.neroquests.manual.denied"));
+            return 0;
+        }
+        if (quest.source() == QuestSource.CUSTOM && lockedOut(source, server)) {
+            source.sendFailure(Component.translatable("command.neroquests.editor.locked_out"));
             return 0;
         }
         if (!hasManualObjective(quest)) {
@@ -485,6 +498,11 @@ public final class QuestCommands {
         if (!QuestStates.isAvailable(quest, QuestDefinitions.questsForServer(server), playerCompleted,
                 serverCompleted, QuestEngine.openGatesFor(target))) {
             source.sendFailure(Component.translatable("command.neroquests.manual.locked", questId));
+            return 0;
+        }
+        if (quest.source() == QuestSource.CUSTOM && state.isOwedFull(target.getUUID())) {
+            // J2 (RT-10): a full owed queue takes no more custom-quest rewards by hand.
+            source.sendFailure(Component.translatable("command.neroquests.manual.queue_full"));
             return 0;
         }
         boolean completed = QuestEngine.manualComplete(target, quest);
@@ -939,9 +957,8 @@ public final class QuestCommands {
             return 0;
         }
         AdminActions.record(AdminActions.Kind.CUSTOM_EXPORT);
-        source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.done",
-                Integer.valueOf(result.chapters()), Integer.valueOf(result.quests()),
-                CustomPackIO.EXPORT_FOLDER), false);
+        source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.written",
+                Integer.valueOf(result.chapters()), Integer.valueOf(result.quests()), result.folder()), false);
         if (result.externalReferences() > 0) {
             source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.external",
                     Integer.valueOf(result.externalReferences())).withStyle(ChatFormatting.GOLD), false);
@@ -950,7 +967,7 @@ public final class QuestCommands {
             source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.repeatable",
                     Integer.valueOf(result.repeatable())).withStyle(ChatFormatting.GOLD), false);
         }
-        source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.next")
+        source.sendSuccess(() -> Component.translatable("command.neroquests.custom.export.promote")
                 .withStyle(ChatFormatting.GRAY), false);
         return Command.SINGLE_SUCCESS;
     }
@@ -1015,6 +1032,10 @@ public final class QuestCommands {
         Optional<String> locked = QuestSources.lockKey(id);
         if (locked.isPresent()) {
             source.sendFailure(Component.translatable(locked.get(), id.toString()));
+            return 0;
+        }
+        if (lockedOut(source, server)) {
+            source.sendFailure(Component.translatable("command.neroquests.editor.locked_out"));
             return 0;
         }
         CustomQuestState state = CustomQuestState.get(server);

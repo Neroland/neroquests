@@ -32,16 +32,26 @@
   `QuestSources.requireMutable(id)` and refuses spine/pack ids with a lock message; custom content is
   merged into `QuestDefinitions` only as `custom:` ids and never replaces another definition.
 - Spine and pack quests may never depend on a custom quest (`CustomRules.referencesCustom`).
+- Origin beats namespace for the spine: `QuestDefinitions` reads `neroquests:` files only from mod
+  resources — a world/server datapack file there is dropped, a datapack copy of a spine file ignored — and
+  drops `mod_hook` rewards from datapack quests (`fromDatapack`, vanilla pack metadata, all loaders).
 
 ## Editor lock and permissions
 
 - `custom/CustomQuests` is the **single writer** of custom content (also used by the network handlers in
   `network/EditorRequests` and the `/neroquests custom` commands). Every request goes through
   `custom/EditGate`: re-derive `EditorPermissions.canAuthor` now → rate limit (20/s, 200/min per player)
-  → spine/pack lock → validate → `QuestDefinitions.preview` → apply → re-sync. The client decides nothing.
+  → spine/pack lock → validate → `QuestDefinitions.preview` → apply → re-sync (coalesced to ≤1/s). The
+  client decides nothing. Editor packets meet `network/EditorIntake` (40/s inbound cap, global slot,
+  refusal replies ≤2/s) and are authorised and charged **before** any JSON is decoded.
 - Who may author: Creative mode (`editorRequiresCreative`), permission level `editorMinOpLevel`, or the
   editor allow-list; never spectators or dead players. `/neroquests editor lock` closes the editor to
-  everyone below level 4. The definitions sync carries `can_author`, re-sent whenever it flips.
+  everyone below level 4 (also `custom delete` / custom `manual complete` by level-3 players). The
+  definitions sync carries `can_author`, re-sent whenever it flips.
+- Creative alone is not privileged (`EditorPermissions.decidePrivileged`: op ≥ `editorMinOpLevel` or the
+  allow-list): only privileged authors set `currency` rewards or change a quest that pays them, and tick
+  `manual` objectives. Custom payouts are capped per UTC day (`custom/CustomRewardPolicy`), loot tables by
+  prefix and stack slot; custom-quest owed entries never evict spine/pack/refund entries.
 - Author-written text goes through `custom/TextSanitizer`, is rendered only with `Component.literal`
   (`quest/QuestText`), and must **never** be logged, put in telemetry or used as a translation key.
 - `created_by` is the author's game UUID: exported with the player's data and cleared (quest kept) on
