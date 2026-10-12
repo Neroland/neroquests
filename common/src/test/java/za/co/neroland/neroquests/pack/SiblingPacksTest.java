@@ -21,10 +21,13 @@ import org.junit.jupiter.api.TestFactory;
  */
 class SiblingPacksTest {
 
-    /** Built siblings that ship a pack; the repository folder name is also the mod id / pack namespace. */
+    /**
+     * Siblings that ship a pack (the four skeleton mods ship data-only packs); the repository folder name is also
+     * the mod id / pack namespace.
+     */
     private static final List<String> SIBLINGS = List.of("nerospace", "nerotech", "neropower", "nerologistics",
             "neroeconomy", "nerocolonies", "nerocreatures", "neroagriculture", "nerodecor", "nerofactions",
-            "neronotes");
+            "neronotes", "neroevents", "neroruins", "nerocompanion", "nerosecurity");
 
     /** NeroQuests' common resources root (same lookup as the other content tests). */
     private static Path resources() {
