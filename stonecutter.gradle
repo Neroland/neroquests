@@ -53,6 +53,7 @@ subprojects {
                 username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
                 password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
             }
+            content { includeGroup 'za.co.neroland.nerolandcore' }
         }
         // NeroEconomy (OPTIONAL, compileOnly API only) from GitHub Packages. Declared ONLY when credentials are
         // present: a Maven repo with a null username fails the whole resolve instead of falling through, so a
