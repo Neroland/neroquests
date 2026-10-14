@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1-beta.1] - 2026-10-14
+
+A craftable quest book, a fix for the quest book ignoring left clicks on Minecraft 26.3, and
+dependency updates. No data or config changes; worlds update in place.
+
+### Added
+
+- **Craftable quest book.** Shapeless recipe: a book and a piece of paper make a
+  `neroquests:quest_book`. The recipe unlocks in the recipe book as soon as the player holds a book.
+
+### Fixed
+
+- **Quest book clicks on Minecraft 26.3.** 26.3 moved input from GLFW to SDL, which renumbered the
+  mouse buttons, so every left click on the quest graph, chapter tabs, zoom buttons, drawer close
+  button and editor picker was ignored, and right-click prerequisite removal in the editor misfired.
+  The book and editor now compare against Minecraft's own button constants, which each MC version
+  compiles with its correct values.
+
+### Changed
+
+- **Dependencies updated:** NeoForge 26.1.2.116 / 26.2.0.90 / 26.3.0.76 (all three now stable
+  releases rather than betas), Forge 64.1.4 / 65.1.4 / 66.0.11, Fabric Loader 0.19.5 with Fabric API
+  0.155.3 / 0.161.0 / 0.162.0, JEI 29.47.0.109 / 30.42.0.236 / 31.12.0.65, Sentry 8.60.0, and the
+  optional NeroEconomy compile API 0.4.0-beta.1. Neroland Core stays at 1.15.0.
+- **Build:** Gradle 9.8.1, ModDevGradle 2.0.148, Fabric Loom 1.18.4, JUnit 6.1.3, Forge eventbus
+  validator 7.0.6. The GitHub Packages repository is now restricted to the Neroland Core group, so
+  other artifacts are never looked up there.
+
 ## [0.4.0-beta.1] - 2026-10-11
 
 Quest packs from other Neroland mods, an in-book quest editor for players the server trusts, a

@@ -1862,6 +1862,10 @@ public class QuestBookScreen extends Screen {
 
     // --- input -------------------------------------------------------------------------------------
 
+    // Mouse buttons are always compared against InputConstants.MOUSE_BUTTON_*, never literals: 26.3 moved input
+    // from GLFW (left 0, right 1) to SDL (left 1, middle 2, right 3), and each MC version compiles its own
+    // constants. A literal 0 silently made every left click on the graph and the chapter tabs a no-op on 26.3.
+
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
         this.pressX = event.x();
@@ -1881,28 +1885,28 @@ public class QuestBookScreen extends Screen {
             return true;
         }
         if (overDrawer(event.x(), event.y())) {
-            if (event.button() == 0 && drawerClose().contains(event.x(), event.y())) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT && drawerClose().contains(event.x(), event.y())) {
                 closeDrawer();
             }
             return true;
         }
         int zoom = zoomButtonAt(event.x(), event.y());
         if (zoom >= 0) {
-            if (event.button() == 0) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                 pressZoom(zoom);
             }
             return true;
         }
         if (drawerOpen()) {
             // With the drawer open the graph only pans, selects or closes (on release).
-            if (event.button() == 0) {
+            if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
                 this.drag = Drag.PAN;
             }
             return true;
         }
         Chapter chapter = currentChapter();
         boolean editable = this.editMode && chapter != null && chapter.source() == QuestSource.CUSTOM;
-        if (this.editMode && event.button() == 1) {
+        if (this.editMode && event.button() == InputConstants.MOUSE_BUTTON_RIGHT) {
             int line = editable ? lineIndexAt(event.x(), event.y()) : -1;
             if (line >= 0) {
                 this.editor.removePrerequisite(this.graph.quests[this.graph.edgeTo[line]].id(),
@@ -1912,7 +1916,7 @@ public class QuestBookScreen extends Screen {
             }
             return true;
         }
-        if (event.button() != 0) {
+        if (event.button() != InputConstants.MOUSE_BUTTON_LEFT) {
             return true;
         }
         if (this.editMode) {
@@ -1985,7 +1989,7 @@ public class QuestBookScreen extends Screen {
                 selectQuest(quest);
                 rebuildWidgets();
             }
-        } else if (!wasDragged && event.button() == 0 && !this.editor.overlayOpen()) {
+        } else if (!wasDragged && event.button() == InputConstants.MOUSE_BUTTON_LEFT && !this.editor.overlayOpen()) {
             // Select on release, and only when the press was not a drag — otherwise every drag that
             // started on a node would also open it.
             handleClick(event.x(), event.y());

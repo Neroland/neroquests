@@ -2,7 +2,7 @@
 
 > Part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
 
-**Status:** beta — version `0.4.0-beta.1`.
+**Status:** beta — version `0.4.1-beta.1`.
 
 A native, datapack-driven quest engine for the Neroland ecosystem:
 

@@ -3,7 +3,7 @@
 Player- and contributor-facing documentation for **NeroQuests**, part of the Neroland
 sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
-> **Status:** beta (version `0.4.0-beta.1`). The quest engine, rewards, sync, the quest book, the
+> **Status:** beta (version `0.4.1-beta.1`). The quest engine, rewards, sync, the quest book, the
 > built-in three-chapter story line, quest packs from other mods and the in-book quest editor are in;
 > pages grow as features arrive. Keep this wiki updated alongside code changes
 > (see [`../AGENTS.md`](../AGENTS.md) / [`../CLAUDE.md`](../CLAUDE.md)).

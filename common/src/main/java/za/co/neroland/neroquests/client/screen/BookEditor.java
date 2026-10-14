@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.mojang.blaze3d.platform.InputConstants;
 
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -1530,7 +1531,7 @@ final class BookEditor {
 
     /** A click that no widget took while an overlay is open (picker rows). */
     void overlayClicked(double mouseX, double mouseY, int button) {
-        if (this.overlay != Overlay.PICKER || button != 0) {
+        if (this.overlay != Overlay.PICKER || button != InputConstants.MOUSE_BUTTON_LEFT) {
             return;
         }
         Rect list = pickerList();

@@ -10,18 +10,11 @@
           }
         ]
       }
-    },
-    "has_the_recipe": {
-      "trigger": "minecraft:recipe_unlocked",
-      "conditions": {
-        "recipe": "neroquests:quest_book"
-      }
     }
   },
   "requirements": [
     [
-      "has_book",
-      "has_the_recipe"
+      "has_book"
     ]
   ],
   "rewards": {
