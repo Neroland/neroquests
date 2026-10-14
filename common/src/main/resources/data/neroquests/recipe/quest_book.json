@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:book",
+    "minecraft:paper"
+  ],
+  "result": {
+    "id": "neroquests:quest_book",
+    "count": 1
+  }
+}
