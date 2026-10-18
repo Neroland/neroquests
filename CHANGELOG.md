@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Joining a server that runs a different NeroQuests version no longer disconnects you**
+  (MC-NEROQUESTS-1). The quest list sync had no version marker, so a client meeting a server on an
+  older or newer NeroQuests (easy over LAN tunnels such as e4mc) misread it and was kicked with a
+  decode error. Each sync page now starts with a format marker and version; a page the client cannot
+  read is skipped with one log line and the quest book stays empty, while everything else keeps
+  working. Server and client should still run the same NeroQuests version to see quests.
+
 ## [0.4.1-beta.1] - 2026-10-14
 
 A craftable quest book, a fix for the quest book ignoring left clicks on Minecraft 26.3, and

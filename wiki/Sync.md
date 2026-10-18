@@ -80,6 +80,9 @@ quests rather than the last session's.
 - Quest definitions travel encoded with the *same* codecs the datapack loader uses, so the JSON you
   write is exactly what the client decodes. A definition that fails to decode client-side is logged
   against its id and skipped, never crashing the packet or the game.
+- Every definitions page starts with a format marker and version. A client that meets a server running
+  a different NeroQuests version skips pages it cannot read (one log line, empty quest book) instead of
+  being disconnected. Run the same NeroQuests version on both sides to see quests.
 - Objective and reward **types** are code, not data — a client needs the same NeroQuests version (and
   the same add-on mods, if a pack uses their types) to understand every definition. Types the server
   did not recognise were already dropped before sending.

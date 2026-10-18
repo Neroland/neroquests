@@ -60,6 +60,9 @@ public final class ClientQuestDefinitions {
     private static final DefinitionPager.Assembler<QuestDefinitionsPayload.Entry> PAGES =
             new DefinitionPager.Assembler<>();
 
+    /** Whether an unreadable page was already logged this session (logged once, no player data). */
+    private static volatile boolean rejectionWarned;
+
     private ClientQuestDefinitions() {
     }
 
@@ -71,6 +74,15 @@ public final class ClientQuestDefinitions {
      * skipped — a single bad definition never costs the rest.
      */
     public static void accept(QuestDefinitionsPayload payload) {
+        if (payload.rejected()) {
+            // MC-NEROQUESTS-1: a page in another NeroQuests version's wire format (or malformed) is ignored, not fatal.
+            if (!rejectionWarned) {
+                rejectionWarned = true;
+                NeroQuestsCommon.LOGGER.warn("[NeroQuests] Ignoring quest definitions this client cannot read; "
+                        + "the server probably runs a different NeroQuests version. The quest book stays empty.");
+            }
+            return;
+        }
         String editor = payload.editor();
         PAGES.accept(payload.syncId(), payload.page(), payload.pages(), payload.entries())
                 .ifPresent(entries -> replace(entries, editor));
@@ -125,6 +137,7 @@ public final class ClientQuestDefinitions {
      */
     public static void clear() {
         PAGES.clear();
+        rejectionWarned = false;
         snapshot = Snapshot.EMPTY;
         generation++;
     }

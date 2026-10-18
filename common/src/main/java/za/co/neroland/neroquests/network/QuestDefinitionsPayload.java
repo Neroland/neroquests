@@ -10,8 +10,10 @@ import com.google.gson.JsonObject;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 
+import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.DecoderException;
 
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -44,6 +46,12 @@ import za.co.neroland.neroquests.quest.QuestSource;
  * dispatch. Definitions that referenced unregistered types were already dropped server-side by
  * {@link QuestDefinitions}'s validation, so decoding is expected to succeed for every entry; one that
  * does not is logged against its id and skipped by the client.
+ *
+ * <p><b>Versioned, never fatal (MC-NEROQUESTS-1).</b> Every page starts with {@link #WIRE_MAGIC} and
+ * {@link #WIRE_VERSION}. The loaders' channel version cannot tell NeroQuests releases apart, so a client may meet a
+ * server running another NeroQuests version (for example over a LAN tunnel); before this marker the client then
+ * misread the page and was disconnected with a decode error. A page in another wire format, or a malformed one, is
+ * now consumed whole and handed to the client as {@link #rejected()}, which leaves the quest book empty instead.
  *
  * <h2>Paging (AUD-21)</h2>
  *
@@ -98,6 +106,19 @@ public record QuestDefinitionsPayload(int syncId, int page, int pages, String ed
 
     /** Upper bound on one encoded definition body, well above any sane quest JSON. */
     public static final int MAX_BODY_CHARS = 262_144;
+
+    /**
+     * First four bytes of every page (MC-NEROQUESTS-1): marks the versioned wire format. A page from an older
+     * NeroQuests build (which wrote no marker) can never match it, so the client recognises it instead of misreading it.
+     */
+    static final int WIRE_MAGIC = 0x4E515744; // "NQWD"
+
+    /**
+     * Layout version of this payload, bumped on any change to its wire format. Version 1 was the unmarked format of
+     * 0.4.1-beta.1 and earlier. The loaders' channel version stays unchanged on purpose: on NeoForge a channel
+     * version mismatch disconnects the player, while a page of another wire version is simply ignored.
+     */
+    static final int WIRE_VERSION = 2;
 
     /** Upper bound on entries in one page, so a malformed packet cannot pre-allocate without limit. */
     private static final int MAX_ENTRIES = 32_768;
@@ -219,7 +240,22 @@ public record QuestDefinitionsPayload(int syncId, int page, int pages, String ed
 
     // --- wire ---------------------------------------------------------------
 
-    private static void write(RegistryFriendlyByteBuf buf, QuestDefinitionsPayload payload) {
+    /**
+     * Whether this page could not be read (MC-NEROQUESTS-1): the server speaks another wire format (a different
+     * NeroQuests version) or the bytes are malformed. A rejected page carries nothing and is ignored by the client.
+     */
+    public boolean rejected() {
+        return pages < 1;
+    }
+
+    /** The page a client keeps in place of one it could not read. */
+    static QuestDefinitionsPayload rejectedPage() {
+        return new QuestDefinitionsPayload(0, 0, 0, "", List.of());
+    }
+
+    static void write(FriendlyByteBuf buf, QuestDefinitionsPayload payload) {
+        buf.writeInt(WIRE_MAGIC);
+        buf.writeVarInt(WIRE_VERSION);
         buf.writeVarInt(payload.syncId);
         buf.writeVarInt(payload.page);
         buf.writeVarInt(payload.pages);
@@ -232,7 +268,30 @@ public record QuestDefinitionsPayload(int syncId, int page, int pages, String ed
         }
     }
 
-    private static QuestDefinitionsPayload read(RegistryFriendlyByteBuf buf) {
+    /**
+     * Reads one page and never throws (MC-NEROQUESTS-1). The whole payload is taken off the packet first, so the
+     * connection always sees it fully consumed; the page is then parsed from that copy, and a page that does not
+     * start with this version's magic and wire version, fails a bound, or leaves bytes over is returned as
+     * {@link #rejectedPage()} instead of a decode error that would disconnect the client.
+     */
+    static QuestDefinitionsPayload read(FriendlyByteBuf buf) {
+        byte[] bytes = new byte[buf.readableBytes()];
+        buf.readBytes(bytes);
+        FriendlyByteBuf in = new FriendlyByteBuf(Unpooled.wrappedBuffer(bytes));
+        try {
+            if (in.readableBytes() < Integer.BYTES || in.readInt() != WIRE_MAGIC || in.readVarInt() != WIRE_VERSION) {
+                return rejectedPage();
+            }
+            QuestDefinitionsPayload page = readBody(in);
+            return in.readableBytes() == 0 ? page : rejectedPage();
+        } catch (RuntimeException e) {
+            return rejectedPage();
+        } finally {
+            in.release();
+        }
+    }
+
+    private static QuestDefinitionsPayload readBody(FriendlyByteBuf buf) {
         int syncId = buf.readVarInt();
         int page = buf.readVarInt();
         int pages = buf.readVarInt();
