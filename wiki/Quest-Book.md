@@ -17,8 +17,7 @@ There are two ways in, and they open exactly the same screen.
 | The item | `neroquests:quest_book` — right-click while holding it |
 | The key | **G** by default; rebind it under Options → Controls → **NeroQuests** |
 
-The quest book item is available in creative from **Neroland Core's shared creative tab** — NeroQuests
-adds no tab of its own.
+The quest book item is available in creative from the **NeroQuests** creative tab.
 
 Pressing the same key again while the book is open closes it.
 

@@ -1,9 +1,11 @@
 package za.co.neroland.neroquests.registry;
 
+import java.util.List;
+
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.level.ItemLike;
 
-import za.co.neroland.nerolandcore.registry.CoreCreativeTab;
 import za.co.neroland.nerolandcore.registry.RegistrationProvider;
 import za.co.neroland.nerolandcore.registry.RegistrationProvider.RegistryEntry;
 
@@ -40,11 +42,10 @@ public final class ModItems {
     }
 
     /**
-     * Contributes the book to Core's shared creative tab. NeroQuests adds no tab of its own — the
-     * whole ecosystem shares Core's. The supplier is lazy on purpose: on the deferred loaders the
-     * item does not exist yet when this runs.
+     * Every NeroQuests item, in display order, for {@link ModCreativeTab}. Called only when the tab is
+     * built, by which point the items exist on every loader.
      */
-    public static void addToCreativeTab() {
-        CoreCreativeTab.add(QUEST_BOOK::get);
+    public static List<ItemLike> creativeContents() {
+        return List.of(QUEST_BOOK.get());
     }
 }

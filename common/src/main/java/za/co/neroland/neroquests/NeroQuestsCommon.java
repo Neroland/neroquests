@@ -13,6 +13,7 @@ import za.co.neroland.neroquests.quest.QuestTypes;
 import za.co.neroland.neroquests.quest.engine.CompletionSignals;
 import za.co.neroland.neroquests.quest.engine.QuestTriggers;
 import za.co.neroland.neroquests.quest.reward.QuestRewards;
+import za.co.neroland.neroquests.registry.ModCreativeTab;
 import za.co.neroland.neroquests.registry.ModItems;
 import za.co.neroland.neroquests.telemetry.NeroQuestsTelemetry;
 
@@ -49,10 +50,8 @@ public final class NeroQuestsCommon {
         // builds the DeferredRegisters, which each of those entry points then attaches to its mod
         // event bus with RegistrationProvider.attach(...).
         ModItems.init();
-        // The book joins Neroland Core's shared creative tab — no NeroQuests tab of its own. Core's
-        // tab reads its contents lazily when the tab is displayed, so contributing after Core has
-        // already built the tab is fine.
-        ModItems.addToCreativeTab();
+        // NeroQuests' own creative tab, after the items it lists.
+        ModCreativeTab.init();
         // Objective/reward types must exist before any datapack quest is parsed, otherwise
         // every spec would decode as "unknown type" and drop its quest.
         QuestTypes.init();

@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The quest book now lives in NeroQuests' own creative tab** (`itemGroup.neroquests`) instead of
+  Neroland Core's shared tab, which now holds only Core's items.
+
 ### Fixed
 
 - **Joining a server that runs a different NeroQuests version no longer disconnects you**
