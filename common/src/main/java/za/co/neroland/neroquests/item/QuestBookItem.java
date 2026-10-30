@@ -27,10 +27,20 @@ public class QuestBookItem extends Item {
     }
 
     @Override
+    //? if >=1.21.2 {
     public InteractionResult use(Level level, Player player, InteractionHand hand) {
+    //?} else {
+    /*public net.minecraft.world.InteractionResultHolder<net.minecraft.world.item.ItemStack> use(Level level,
+            Player player, InteractionHand hand) {
+    *///?}
         if (level.isClientSide()) {
             QuestBookOpener.open();
         }
+        //? if >=1.21.2 {
         return InteractionResult.SUCCESS;
+        //?} else {
+        /*return net.minecraft.world.InteractionResultHolder.sidedSuccess(player.getItemInHand(hand),
+                level.isClientSide());
+        *///?}
     }
 }

@@ -22,6 +22,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 import net.minecraft.world.level.storage.LevelResource;
 
+import za.co.neroland.nerolandcore.data.SavedDataCompat;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 
 /**
@@ -91,7 +92,7 @@ public final class SavedDataRecovery {
     private static <T extends SavedData> void preserveCorruptPrimary(ServerLevel level, SavedDataType<T> type,
                                                                      String name) {
         try {
-            Path primary = primaryFile(level, type.id());
+            Path primary = primaryFile(level, SavedDataCompat.fileStem(type));
             if (primary == null) {
                 return; // nothing on disk yet
             }
@@ -99,7 +100,7 @@ public final class SavedDataRecovery {
             try {
                 CompoundTag root = NbtIo.readCompressed(primary, NbtAccounter.unlimitedHeap());
                 Tag data = root.get("data");
-                bad = data != null && type.codec()
+                bad = data != null && SavedDataCompat.codec(type, level)
                         .parse(level.registryAccess().createSerializationContext(NbtOps.INSTANCE), data)
                         .error().isPresent();
             } catch (Exception unreadable) {
@@ -125,14 +126,14 @@ public final class SavedDataRecovery {
      * The vanilla primary file for {@code id}, or {@code null}: {@code <dimension folder>/data/<ns>/<path>.dat},
      * also probed under {@code dimensions/<dim ns>/<dim path>/} (the same layouts Core checks).
      */
-    private static Path primaryFile(ServerLevel level, Identifier id) {
+    private static Path primaryFile(ServerLevel level, String stem) {
         Path worldRoot = level.getServer().getWorldPath(LevelResource.ROOT);
         Path storage = DimensionType.getStorageFolder(level.dimension(), worldRoot);
         Identifier dim = level.dimension().identifier();
         Path[] candidates = {
-                storage.resolve("data").resolve(id.getNamespace()).resolve(id.getPath() + ".dat"),
+                storage.resolve("data").resolve(stem + ".dat"),
                 worldRoot.resolve("dimensions").resolve(dim.getNamespace()).resolve(dim.getPath())
-                        .resolve("data").resolve(id.getNamespace()).resolve(id.getPath() + ".dat"),
+                        .resolve("data").resolve(stem + ".dat"),
         };
         for (Path candidate : candidates) {
             if (Files.isRegularFile(candidate)) {

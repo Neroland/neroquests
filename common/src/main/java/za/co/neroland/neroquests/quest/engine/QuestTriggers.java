@@ -18,6 +18,7 @@ import za.co.neroland.nerolandcore.event.CoreEvents;
 import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
 import za.co.neroland.nerolandcore.progression.GateEvents.GateChange;
 import za.co.neroland.nerolandcore.progression.GateScope;
+import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.command.QuestCommands;
 import za.co.neroland.neroquests.config.NeroQuestsConfig;
 import za.co.neroland.neroquests.contract.ContractDefinitions;
@@ -241,18 +242,39 @@ public final class QuestTriggers {
         ticksSinceSweep = 0;
         ticksSinceOwedRetry = 0;
         ticksSinceRetentionSweep = 0;
-        QuestSync.serverStopped();
-        QuestLinkModule.serverStopped();
-        ProgressReconciler.serverStopped();
-        QuestDefinitions.serverStopped();
-        ContractDefinitions.serverStopped();
-        QuestProgressState.serverStopped();
-        CurrencyPayouts.serverStopped();
-        CustomQuests.serverStopped();
-        QuestCommands.serverStopped();
-        MissingContent.reset();
-        RewardLog.reset();
-        SeenChannels.reset();
+        // Each reset runs on its own (MC-NEROQUESTS-2): one that fails must not skip the rest. Lambdas, not
+        // method references: a reference resolves its class outside resetSafely's try, a lambda body inside it.
+        resetSafely("QuestSync", () -> QuestSync.serverStopped());
+        resetSafely("QuestLinkModule", () -> QuestLinkModule.serverStopped());
+        resetSafely("ProgressReconciler", () -> ProgressReconciler.serverStopped());
+        resetSafely("QuestDefinitions", () -> QuestDefinitions.serverStopped());
+        resetSafely("ContractDefinitions", () -> ContractDefinitions.serverStopped());
+        resetSafely("QuestProgressState", () -> QuestProgressState.serverStopped());
+        resetSafely("CurrencyPayouts", () -> CurrencyPayouts.serverStopped());
+        resetSafely("CustomQuests", () -> CustomQuests.serverStopped());
+        resetSafely("QuestCommands", () -> QuestCommands.serverStopped());
+        resetSafely("MissingContent", () -> MissingContent.reset());
+        resetSafely("RewardLog", () -> RewardLog.reset());
+        resetSafely("SeenChannels", () -> SeenChannels.reset());
+    }
+
+    /**
+     * Runs one server-stopped reset, tolerating a class that can no longer be loaded (MC-NEROQUESTS-2).
+     *
+     * <p>Several of these holders are loaded lazily, so shutdown can be the first time their class is
+     * needed. If the mod jar was replaced or removed while the server ran (hosts that update mods in place
+     * do this), that first load fails with {@link NoClassDefFoundError}. A class that was never loaded
+     * holds no static state, so there is nothing to reset and skipping it is correct. Only
+     * {@link LinkageError} is tolerated; any other failure still propagates as a real bug.
+     */
+    private static void resetSafely(String what, Runnable reset) {
+        try {
+            reset.run();
+        } catch (LinkageError e) {
+            NeroQuestsCommon.LOGGER.warn("[NeroQuests] Skipped the {} reset on server stop: its class could not be"
+                    + " loaded ({}). This usually means the mod jar changed while the server was running.",
+                    what, e.toString());
+        }
     }
 
     /**

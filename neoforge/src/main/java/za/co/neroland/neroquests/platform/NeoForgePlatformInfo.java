@@ -23,12 +23,20 @@ public final class NeoForgePlatformInfo implements PlatformInfo {
     @Override
     public boolean isDevelopmentEnvironment() {
         // 26.1.x exposes these as methods (the old `FMLEnvironment.production` / `.dist` fields are gone).
+        //? if >=1.21.9 {
         return !FMLEnvironment.isProduction();
+        //?} else {
+        /*return !FMLEnvironment.production;
+        *///?}
     }
 
     @Override
     public boolean isClient() {
+        //? if >=1.21.9 {
         return FMLEnvironment.getDist() == Dist.CLIENT;
+        //?} else {
+        /*return FMLEnvironment.dist == Dist.CLIENT;
+        *///?}
     }
 
     @Override

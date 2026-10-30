@@ -24,7 +24,11 @@ public final class NeroQuestsNeoForge {
         NeoForgeQuestNetwork.register(modEventBus);
         // Objective triggers NeoForge alone can provide (server tick, kill credit, join sync).
         NeoForgeQuestEvents.register();
+        //? if >=1.21.9 {
         if (FMLEnvironment.getDist() == Dist.CLIENT) {
+        //?} else {
+        /*if (FMLEnvironment.dist == Dist.CLIENT) {
+        *///?}
             NeoForgeQuestClientEvents.register(modEventBus);
         }
     }

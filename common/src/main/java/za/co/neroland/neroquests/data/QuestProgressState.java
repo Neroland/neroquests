@@ -23,6 +23,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
+import za.co.neroland.nerolandcore.data.SavedDataCompat;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.config.NeroQuestsConfig;
 import za.co.neroland.neroquests.quest.QuestScope;
@@ -84,7 +85,7 @@ public final class QuestProgressState extends SavedData {
             Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_progress");
 
     public static final SavedDataType<QuestProgressState> TYPE =
-            new SavedDataType<>(ID, QuestProgressState::new, codec(), null);
+            SavedDataCompat.type(ID, QuestProgressState::new, codec());
 
     /**
      * Upper bound on objective indices accepted by the increment methods. A quest never has this

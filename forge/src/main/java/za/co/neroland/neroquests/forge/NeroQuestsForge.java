@@ -20,12 +20,22 @@ public final class NeroQuestsForge {
         NeroQuestsCommon.init();
         // Common init created NeroQuests' DeferredRegisters through Core's registration seam; this
         // attaches them to OUR mod bus group.
+        //? if >=1.21.6 {
         RegistrationProvider.attach(context.getModBusGroup());
+        //?} else {
+        /*RegistrationProvider.attach(context.getModEventBus());
+        *///?}
         ForgeQuestNetwork.register();
         // Objective triggers Forge alone can provide (server tick, kill credit, join sync).
         ForgeQuestEvents.register();
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            //? if >=1.21.9 {
             ForgeQuestClientEvents.register();
+            //?} else if >=1.21.6 {
+            /*ForgeQuestClientEvents.register(context.getModBusGroup());
+            *///?} else {
+            /*ForgeQuestClientEvents.register(context.getModEventBus());
+            *///?}
         }
     }
 }

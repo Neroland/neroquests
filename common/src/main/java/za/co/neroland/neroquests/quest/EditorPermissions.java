@@ -101,6 +101,15 @@ public final class EditorPermissions {
 
     /** The player's permission level, 0..4. */
     public static int opLevel(ServerPlayer player) {
+        //? if <1.21.11 {
+        /*// Before 1.21.11 permission levels are plain ints.
+        for (int level = Commands.LEVEL_OWNERS; level > 0; level--) {
+            if (player.hasPermissions(level)) {
+                return level;
+            }
+        }
+        return 0;
+        *///?} else {
         if (Commands.LEVEL_OWNERS.check(player.permissions())) {
             return 4;
         }
@@ -111,6 +120,7 @@ public final class EditorPermissions {
             return 2;
         }
         return Commands.LEVEL_MODERATORS.check(player.permissions()) ? 1 : 0;
+        //?}
     }
 
     private static boolean creativeGrants() {

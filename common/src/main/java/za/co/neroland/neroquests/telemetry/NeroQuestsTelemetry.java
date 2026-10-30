@@ -146,7 +146,7 @@ public final class NeroQuestsTelemetry {
         options.setEnableAutoSessionTracking(false);
         // No breadcrumbs (nothing records them, and none may ride along) and no performance tracing.
         options.setBeforeBreadcrumb((breadcrumb, hint) -> null);
-        options.setBeforeSend((event, hint) -> filterAndScrub(event));
+        options.setBeforeSend((event, hint) -> ForeignMixinFailure.matches(event) ? null : filterAndScrub(event));
         SentryClient client = new SentryClient(options);
         Scope global = new Scope(options);
         global.bindClient(client);

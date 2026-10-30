@@ -28,7 +28,13 @@ import za.co.neroland.neroquests.quest.engine.QuestTriggers;
 abstract class ItemStackMixin {
 
     @Inject(method = "onCraftedBy", at = @At("HEAD"))
+    //? if >=1.21.5 {
     private void neroquests$creditCraftedItem(Player player, int craftCount, CallbackInfo ci) {
+    //?} else {
+    /*// Before 1.21.5 onCraftedBy also takes the level.
+    private void neroquests$creditCraftedItem(net.minecraft.world.level.Level level, Player player, int craftCount,
+            CallbackInfo ci) {
+    *///?}
         QuestTriggers.itemCrafted(player, (ItemStack) (Object) this, craftCount);
     }
 }

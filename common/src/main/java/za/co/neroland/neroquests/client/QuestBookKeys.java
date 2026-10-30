@@ -28,7 +28,12 @@ public final class QuestBookKeys {
     public static final Identifier CATEGORY_ID =
             Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quests");
 
+    //? if >=1.21.9 {
     public static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(CATEGORY_ID);
+    //?} else {
+    /*// Before 1.21.9 a key category is its translation key; this is the label key 1.21.9+ derives from the id.
+    public static final String CATEGORY = "key.category." + NeroQuestsCommon.MOD_ID + ".quests";
+    *///?}
 
     /** Opens the quest book. Default: G. */
     public static final KeyMapping OPEN_QUEST_BOOK =

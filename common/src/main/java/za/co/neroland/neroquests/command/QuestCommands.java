@@ -24,6 +24,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.IdentifierArgument;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
@@ -129,7 +130,7 @@ public final class QuestCommands {
      * function runs with suppressed output — all refused.
      */
     static boolean trustedAdmin(CommandSourceStack source) {
-        if (!Commands.LEVEL_ADMINS.check(source.permissions())) {
+        if (!hasLevel(source, Commands.LEVEL_ADMINS)) {
             return false;
         }
         if (source.getEntity() instanceof ServerPlayer) {
@@ -137,7 +138,7 @@ public final class QuestCommands {
         }
         return source.getEntity() == null
                 && !source.isSilent()
-                && Commands.LEVEL_OWNERS.check(source.permissions())
+                && hasLevel(source, Commands.LEVEL_OWNERS)
                 && ("Server".equals(source.getTextName()) || "Rcon".equals(source.getTextName()));
     }
 
@@ -145,7 +146,27 @@ public final class QuestCommands {
      * {@link #trustedAdmin} at permission level 4: {@code editor lock|unlock} and {@code custom import}.
      */
     static boolean trustedOwner(CommandSourceStack source) {
-        return trustedAdmin(source) && Commands.LEVEL_OWNERS.check(source.permissions());
+        return trustedAdmin(source) && hasLevel(source, Commands.LEVEL_OWNERS);
+    }
+
+    /** Whether {@code source} holds the permission {@code level} (a check object since 1.21.11, an int before). */
+    //? if >=1.21.11 {
+    private static boolean hasLevel(CommandSourceStack source, net.minecraft.server.permissions.PermissionCheck level) {
+        return level.check(source.permissions());
+    }
+    //?} else {
+    /*private static boolean hasLevel(CommandSourceStack source, int level) {
+        return source.hasPermission(level);
+    }
+    *///?}
+
+    /** The command requirement for permission level 2 ({@code Commands.hasPermission} exists from 1.21.6). */
+    private static java.util.function.Predicate<CommandSourceStack> gamemasters() {
+        //? if >=1.21.6 {
+        return Commands.hasPermission(Commands.LEVEL_GAMEMASTERS);
+        //?} else {
+        /*return source -> source.hasPermission(Commands.LEVEL_GAMEMASTERS);
+        *///?}
     }
 
     /** Manual completions per invoker: 10 a minute (§13). */
@@ -239,14 +260,14 @@ public final class QuestCommands {
                                         .executes(ctx -> runSafely(ctx.getSource(), "reset quest",
                                                 () -> revokeQuest(ctx))))))
                 .then(Commands.literal("list")
-                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .requires(gamemasters())
                         .executes(ctx -> runSafely(ctx.getSource(), "list",
                                 () -> listQuests(ctx.getSource())))
                         .then(playerArgument()
                                 .executes(ctx -> runSafely(ctx.getSource(), "list player",
                                         () -> listForPlayer(ctx)))))
                 .then(Commands.literal("reload-check")
-                        .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .requires(gamemasters())
                         .executes(ctx -> runSafely(ctx.getSource(), "reload-check",
                                 () -> reloadCheck(ctx.getSource()))))
                 .then(Commands.literal("export")
@@ -1210,8 +1231,8 @@ public final class QuestCommands {
             DailyContract contract = offer.contract();
             String status = offer.done() ? "done" : offer.payable() ? "open" : "unfunded";
             Component target = contract.target().item().isPresent()
-                    ? Component.translatable(net.minecraft.core.registries.BuiltInRegistries.ITEM
-                            .getValue(contract.target().item().get()).getDescriptionId())
+                    ? Component.translatable(BuiltInRegistries.ITEM.getValue(contract.target().item().get())
+                            .getDescriptionId())
                     : contract.target().tag().isPresent()
                             ? Component.translatable("gui.neroquests.target.tag",
                                     Component.literal(contract.target().tag().get().toString()))

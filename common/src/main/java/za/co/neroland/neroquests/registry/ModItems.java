@@ -6,6 +6,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.ItemLike;
 
+import za.co.neroland.nerolandcore.registry.PropertiesCompat;
 import za.co.neroland.nerolandcore.registry.RegistrationProvider;
 import za.co.neroland.nerolandcore.registry.RegistrationProvider.RegistryEntry;
 
@@ -32,7 +33,7 @@ public final class ModItems {
 
     /** {@code neroquests:quest_book} — opens the quest book screen when used. */
     public static final RegistryEntry<Item> QUEST_BOOK = ITEMS.register("quest_book",
-            key -> new QuestBookItem(new Item.Properties().stacksTo(1).setId(key)));
+            key -> new QuestBookItem(PropertiesCompat.item(key).stacksTo(1)));
 
     private ModItems() {
     }

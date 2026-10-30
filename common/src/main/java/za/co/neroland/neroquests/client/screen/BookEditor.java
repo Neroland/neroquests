@@ -597,9 +597,15 @@ final class BookEditor {
         place(field("details.title", x, 0, w, titleMax, this.draftTitle, value -> this.draftTitle = value));
         this.cursor += 16;
         text(Component.translatable(P + "details.description_label", descriptionMax), QuestBookScreen.SUBTLE);
+        //? if >=1.21.6 {
         MultiLineEditBox description = MultiLineEditBox.builder().setX(x).setY(0)
                 .setPlaceholder(Component.translatable(P + "details.description.hint"))
                 .build(this.screen.font(), w, 40, Component.translatable(P + "details.description"));
+        //?} else {
+        /*MultiLineEditBox description = new MultiLineEditBox(this.screen.font(), x, 0, w, 40,
+                Component.translatable(P + "details.description.hint"),
+                Component.translatable(P + "details.description"));
+        *///?}
         description.setCharacterLimit(descriptionMax);
         description.setValue(this.draftDescription);
         description.setValueListener(value -> this.draftDescription = value);
@@ -1023,7 +1029,7 @@ final class BookEditor {
             int y = this.formArea.y() + line.baseY() - this.formScroll;
             if (line.tooltip() != null && mouseX >= line.x() && mouseX < line.x() + line.width()
                     && mouseY >= y && mouseY < y + 12) {
-                graphics.setTooltipForNextFrame(this.screen.font(),
+                BookGfx.tooltip(this.screen, graphics, this.screen.font(),
                         this.screen.font().split(line.tooltip(), 220), mouseX, mouseY);
                 return;
             }

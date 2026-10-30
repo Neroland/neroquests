@@ -21,6 +21,10 @@ def nextMinecraft = { String version ->
     def parts = version.tokenize('.')
     "${parts[0]}.${(parts[1] as int) + 1}"
 }
+// 1.21.x cells are bounded to their API line instead (gradle.properties mc_floor_<v> / mc_ceiling_<v>):
+// 1.21.8 also accepts 1.21.7, 1.21.10 also accepts 1.21.9.
+def mcCeiling = project.findProperty("mc_ceiling_${mc}") ?: nextMinecraft(mc)
+def mcFloor = project.findProperty("mc_floor_${mc}") ?: mc
 
 if (!forgeVersion) {
     throw new GradleException("Missing forge_version_${mc} in gradle.properties")
@@ -108,7 +112,10 @@ repositories {
 
 dependencies {
     implementation minecraft.dependency("net.minecraftforge:forge:${forgeVersion}")
-    annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.6'
+    // EventBus 7's compile-time validator; Forge before 1.21.6 ships EventBus 6, which it cannot validate.
+    if (stonecutter.eval(mc, '>=1.21.6')) {
+        annotationProcessor 'net.minecraftforge:eventbus-validator:7.0.6'
+    }
 
     // Neroland Core — REQUIRED shared foundation (progression gates, config, currency/reputation,
     // data erasure, link API). Compile + dev-runtime classpath; NOT jar-in-jar — Core ships as its
@@ -145,7 +152,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_license               : rootProject.mod_license,
         forge_loader_version_range: "[${forgeMajor},)",
         // Pinned to this cell: [26.2,26.3) on the 26.2 cell, and so on.
-        minecraft_version_range   : "[${mc},${nextMinecraft(mc)})",
+        minecraft_version_range   : "[${mcFloor},${mcCeiling})",
         // Floor the required Core version at what we compile against so Forge refuses to
         // load NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
@@ -188,7 +195,7 @@ tasks.register('ecjCheck', JavaExec) {
                 .join(File.pathSeparator)
         def srcDirs = sourceSets.main.java.srcDirs.findAll { it.exists() }.collect { it.absolutePath }
         args = [
-                '--release', '25',
+                '--release', "${project.javaRelease}",
                 '-proc:none',
                 '-d', 'none',
                 '-properties', rootProject.file('tools/ecj.prefs').absolutePath,

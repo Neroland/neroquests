@@ -23,6 +23,10 @@ def nextMinecraft = { String version ->
     def parts = version.tokenize('.')
     "${parts[0]}.${(parts[1] as int) + 1}"
 }
+// 1.21.x cells are bounded to their API line instead (gradle.properties mc_floor_<v> / mc_ceiling_<v>):
+// 1.21.8 also accepts 1.21.7, 1.21.10 also accepts 1.21.9.
+def mcCeiling = project.findProperty("mc_ceiling_${mc}") ?: nextMinecraft(mc)
+def mcFloor = project.findProperty("mc_floor_${mc}") ?: mc
 
 // This node's projectDir is <loader>/versions/<v>; the authoritative loader source +
 // templates live in the BRANCH root (neoforge/). Resolve branch-root paths via the parent.
@@ -117,7 +121,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_authors            : rootProject.mod_authors,
         mod_license            : rootProject.mod_license,
         // Pinned to this cell: [26.2,26.3) on the 26.2 cell, and so on.
-        minecraft_version_range: "[${mc},${nextMinecraft(mc)})",
+        minecraft_version_range: "[${mcFloor},${mcCeiling})",
         // Floor the required Core version at what we compile against so NeoForge refuses to
         // load NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
@@ -199,7 +203,7 @@ tasks.register('ecjCheck', JavaExec) {
                 .join(File.pathSeparator)
         def srcDirs = sourceSets.main.java.srcDirs.findAll { it.exists() }.collect { it.absolutePath }
         args = [
-                '--release', '25',
+                '--release', "${project.javaRelease}",
                 '-proc:none',
                 '-d', 'none',
                 '-properties', rootProject.file('tools/ecj.prefs').absolutePath,

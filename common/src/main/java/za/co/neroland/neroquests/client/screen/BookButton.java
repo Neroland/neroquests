@@ -28,7 +28,13 @@ final class BookButton extends Button {
     }
 
     @Override
+    //? if >=26.1 {
     protected void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    //?} else if >=1.21.11 {
+    /*protected void renderContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    *///?} else {
+    /*protected void renderWidget(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    *///?}
         int x = getX();
         int y = getY();
         int w = getWidth();

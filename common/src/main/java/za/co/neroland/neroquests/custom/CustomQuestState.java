@@ -20,6 +20,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
+import za.co.neroland.nerolandcore.data.SavedDataCompat;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.data.SavedDataRecovery;
 import za.co.neroland.neroquests.quest.QuestSource;
@@ -51,7 +52,7 @@ public final class CustomQuestState extends SavedData {
     public static final Identifier ID = Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "custom_quests");
 
     public static final SavedDataType<CustomQuestState> TYPE =
-            new SavedDataType<>(ID, CustomQuestState::new, codec(), null);
+            SavedDataCompat.type(ID, CustomQuestState::new, codec());
 
     private final Map<String, CustomChapter> chapters = new LinkedHashMap<>();
     private final Map<Identifier, CustomQuest> quests = new LinkedHashMap<>();

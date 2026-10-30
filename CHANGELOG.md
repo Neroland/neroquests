@@ -7,8 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0-beta.1] - 2026-10-30
+
+First NeroQuests builds for Minecraft 1.21.x, a version-safe quest sync, and the quest book's own
+creative tab. Existing worlds load unchanged. **Now requires Neroland Core 1.17.0 or later** on every
+Minecraft version.
+
+### Added
+
+- **Minecraft 1.21.x builds.** NeroQuests now also builds for Minecraft 1.21.1, 1.21.4, 1.21.5,
+  1.21.8 (also runs on 1.21.7), 1.21.10 (also runs on 1.21.9) and 1.21.11, on NeoForge, Fabric and
+  Forge, next to the 26.x jars. The 1.21.x jars need Java 21. Quests, rewards, daily contracts, the
+  quest book and editor, optional NeroEconomy payouts and economy objectives, and player-data export
+  and erasure all work the same as on 26.x. On 1.21.1 the recipes are converted to that version's
+  format at build time.
+
 ### Changed
 
+- **Now requires Neroland Core 1.17.0 or later.**
 - **The quest book now lives in NeroQuests' own creative tab** (`itemGroup.neroquests`) instead of
   Neroland Core's shared tab, which now holds only Core's items.
 

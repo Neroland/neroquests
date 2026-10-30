@@ -1,6 +1,9 @@
 package za.co.neroland.neroquests.forge;
 
 import net.minecraft.server.level.ServerPlayer;
+//? if <1.21.6 {
+/*import net.minecraftforge.common.MinecraftForge;
+*///?}
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
@@ -26,6 +29,7 @@ public final class ForgeQuestEvents {
     }
 
     /** Called once from the Forge entry point. */
+    //? if >=1.21.9 {
     public static void register() {
         // Periodic re-measure of collect / dimension / gate objectives (self-throttled to 1 Hz).
         TickEvent.ServerTickEvent.Post.BUS.addListener(event ->
@@ -58,4 +62,60 @@ public final class ForgeQuestEvents {
         // The /neroquests admin tree; the tree itself is loader-agnostic.
         RegisterCommandsEvent.BUS.addListener(event -> QuestCommands.register(event.getDispatcher()));
     }
+    //?} else if >=1.21.6 {
+    /*public static void register() {
+        // Forge 1.21.6 - 1.21.8: the tick event exposes its server through getServer().
+        // Periodic re-measure of collect / dimension / gate objectives (self-throttled to 1 Hz).
+        TickEvent.ServerTickEvent.Post.BUS.addListener(event ->
+                QuestTriggers.serverTick(event.getServer()));
+
+        // Drop every static reference to the stopped server (AUD-31).
+        ServerStoppedEvent.BUS.addListener(event -> QuestTriggers.serverStopped());
+
+        // Kill credit; the trigger resolves the responsible player from the damage source.
+        // A statement-bodied lambda is required: LivingDeathEvent is cancellable, so its BUS
+        // offers both Consumer and Predicate overloads and an expression lambda is ambiguous.
+        LivingDeathEvent.BUS.addListener(event -> {
+            QuestTriggers.entityKilled(event.getEntity(), event.getSource());
+        });
+
+        // Push quest definitions + the player's own progress as they join.
+        PlayerEvent.PlayerLoggedInEvent.BUS.addListener(event -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerJoined(serverPlayer);
+            }
+        });
+
+        // Hand over items/experience kept while the player was dead (AUD-05).
+        PlayerEvent.PlayerRespawnEvent.BUS.addListener(event -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerRespawned(serverPlayer);
+            }
+        });
+
+        // The /neroquests admin tree; the tree itself is loader-agnostic.
+        RegisterCommandsEvent.BUS.addListener(event -> QuestCommands.register(event.getDispatcher()));
+    }
+    *///?} else {
+    /*public static void register() {
+        // Forge before 1.21.6 (EventBus 6): one shared bus, listeners typed by their lambda parameter.
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent.Post event) ->
+                QuestTriggers.serverTick(event.getServer()));
+        MinecraftForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> QuestTriggers.serverStopped());
+        MinecraftForge.EVENT_BUS.addListener((LivingDeathEvent event) ->
+                QuestTriggers.entityKilled(event.getEntity(), event.getSource()));
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerLoggedInEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerJoined(serverPlayer);
+            }
+        });
+        MinecraftForge.EVENT_BUS.addListener((PlayerEvent.PlayerRespawnEvent event) -> {
+            if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+                QuestTriggers.playerRespawned(serverPlayer);
+            }
+        });
+        MinecraftForge.EVENT_BUS.addListener((RegisterCommandsEvent event) ->
+                QuestCommands.register(event.getDispatcher()));
+    }
+    *///?}
 }

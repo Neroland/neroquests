@@ -19,8 +19,10 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.MultiLineEditBox;
 import net.minecraft.client.gui.screens.Screen;
+//? if >=1.21.9 {
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
+//?}
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
@@ -573,6 +575,11 @@ public class QuestBookScreen extends Screen {
         long now = System.nanoTime();
         double seconds = this.lastFrameNanos == 0L ? 0.0D : (now - this.lastFrameNanos) / 1.0E9D;
         this.lastFrameNanos = now;
+        //? if <1.21.6 {
+        /*// Before 1.21.6 Screen.render(..) paints the vanilla background itself, which would cover the book; paint
+        // it first here instead (renderBackground below is a no-op for that inherited call).
+        super.renderBackground(graphics, mouseX, mouseY, partialTick);
+        *///?}
         ensureGraph();
         updateMotion(seconds);
 
@@ -597,7 +604,7 @@ public class QuestBookScreen extends Screen {
         }
 
         if (modal) {
-            graphics.nextStratum();
+            BookGfx.nextStratum(graphics);
             this.editor.drawOverlay(graphics, mouseX, mouseY);
         }
         super.extractRenderState(graphics, mouseX, mouseY, partialTick);
@@ -606,9 +613,16 @@ public class QuestBookScreen extends Screen {
         }
         drawToast(graphics);
         if (tabTip != null && !modal) {
-            graphics.setTooltipForNextFrame(this.font, this.font.split(tabTip, 200), mouseX, mouseY);
+            BookGfx.tooltip(this, graphics, this.font, this.font.split(tabTip, 200), mouseX, mouseY);
         }
     }
+
+    //? if <1.21.6 {
+    /*@Override
+    public void renderBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+        // Painted at the start of render(..) instead, under the book.
+    }
+    *///?}
 
     /** The shared inset frame (editor panels, modals, the picker). */
     static void frame(GuiGraphicsExtractor graphics, Rect area) {
@@ -845,11 +859,11 @@ public class QuestBookScreen extends Screen {
         int y = area.y() + Math.max(4, (area.h() - blockH) / 2);
         boolean big = area.h() >= 100;
         if (big) {
-            graphics.pose().pushMatrix();
-            graphics.pose().translate(cx - 16, y);
-            graphics.pose().scale(2.0F, 2.0F);
+            BookGfx.push(graphics);
+            BookGfx.translate(graphics, cx - 16, y);
+            BookGfx.scale(graphics, 2.0F, 2.0F);
             graphics.item(icon, 0, 0);
-            graphics.pose().popMatrix();
+            BookGfx.pop(graphics);
             y += 38;
         } else {
             graphics.item(icon, cx - 8, y);
@@ -1046,7 +1060,7 @@ public class QuestBookScreen extends Screen {
             int gx = (int) Math.round(this.view.screenX(GraphGeometry.world(cell[0])));
             int gy = (int) Math.round(this.view.screenY(GraphGeometry.world(cell[1])));
             graphics.fill(gx - 1, gy - 1, gx + size + 1, gy + size + 1, BookPaint.alpha(BookPaint.CYAN, 0x50));
-            graphics.outline(gx - 1, gy - 1, size + 2, size + 2, BookPaint.CYAN);
+            BookGfx.outline(graphics, gx - 1, gy - 1, size + 2, size + 2, BookPaint.CYAN);
             Quest moving = ClientQuestDefinitions.quest(this.dragQuest).orElse(null);
             if (moving != null) {
                 drawIcon(graphics, icon(moving.icon()), gx, gy, size);
@@ -1080,9 +1094,9 @@ public class QuestBookScreen extends Screen {
                         : editable ? "gui.neroquests.editor.node.tooltip"
                         : "gui.neroquests.editor.node.locked.tooltip").withColor(BookPaint.MUTED));
             }
-            graphics.setComponentTooltipForNextFrame(this.font, lines, mouseX, mouseY);
+            BookGfx.componentTooltip(this, graphics, this.font, lines, mouseX, mouseY);
         } else if (this.hoverLine >= 0) {
-            graphics.setComponentTooltipForNextFrame(this.font,
+            BookGfx.componentTooltip(this, graphics, this.font,
                     List.of(Component.translatable("gui.neroquests.editor.line.tooltip")), mouseX, mouseY);
         }
     }
@@ -1137,11 +1151,11 @@ public class QuestBookScreen extends Screen {
             return;
         }
         float icon = 16.0F * scale;
-        graphics.pose().pushMatrix();
-        graphics.pose().translate(x + (size - icon) / 2.0F, y + (size - icon) / 2.0F);
-        graphics.pose().scale(scale, scale);
+        BookGfx.push(graphics);
+        BookGfx.translate(graphics, x + (size - icon) / 2.0F, y + (size - icon) / 2.0F);
+        BookGfx.scale(graphics, scale, scale);
         graphics.item(stack, 0, 0);
-        graphics.pose().popMatrix();
+        BookGfx.pop(graphics);
     }
 
     private void drawNode(GuiGraphicsExtractor graphics, ChapterGraph g, int index, int baseSize, boolean hovered,
@@ -1160,7 +1174,7 @@ public class QuestBookScreen extends Screen {
             graphics.fill(x - 1, y - 1, x + size + 1, y + size + 1, BookPaint.alpha(COLOUR_AVAILABLE, glow));
         }
         if (selected) {
-            graphics.outline(x - 3, y - 3, size + 6, size + 6, BookPaint.CYAN);
+            BookGfx.outline(graphics, x - 3, y - 3, size + 6, size + 6, BookPaint.CYAN);
             BookPaint.corners(graphics, x - 5, y - 5, size + 10, size + 10, 4, BookPaint.CYAN);
         }
         int edge = state == NodeState.LOCKED ? 0xFF34405A : accent;
@@ -1172,7 +1186,7 @@ public class QuestBookScreen extends Screen {
         BookPaint.bevel(graphics, x, y, size, size, edge, top, bottom);
         if (state == NodeState.COMPLETED || state == NodeState.IN_PROGRESS) {
             // An inner accent ring makes finished / running quests read at a glance.
-            graphics.outline(x + 2, y + 2, size - 4, size - 4, BookPaint.alpha(accent, 0x55));
+            BookGfx.outline(graphics, x + 2, y + 2, size - 4, size - 4, BookPaint.alpha(accent, 0x55));
         }
         drawIcon(graphics, icon(quest.icon()), x, y, size);
         if (state == NodeState.LOCKED) {
@@ -1284,7 +1298,7 @@ public class QuestBookScreen extends Screen {
             }
             if (hot) {
                 String key = index == 0 ? "zoom_out" : index == 1 ? "zoom_in" : "fit";
-                graphics.setComponentTooltipForNextFrame(this.font, List.of(Component.translatable(G + key)), mouseX, mouseY);
+                BookGfx.componentTooltip(this, graphics, this.font, List.of(Component.translatable(G + key)), mouseX, mouseY);
             }
         }
         if (!this.layout.compact()) {
@@ -1353,7 +1367,7 @@ public class QuestBookScreen extends Screen {
         float eased = easeOut(this.drawerProgress);
         int x = drawerX();
         // A new stratum: the drawer always covers the graph's items and labels.
-        graphics.nextStratum();
+        BookGfx.nextStratum(graphics);
         graphics.enableScissor(canvas.x(), canvas.y(), canvas.right(), canvas.bottom());
         graphics.fill(canvas.x(), canvas.y(), x, canvas.bottom(), BookPaint.alpha(INK, (int) (0x58 * eased)));
         BookPaint.shadowLeft(graphics, x, drawer.y(), drawer.h(), 6);
@@ -1387,7 +1401,7 @@ public class QuestBookScreen extends Screen {
         Glyphs.cross(graphics, close.x() + 3, close.y() + 3, hot ? TITLE : SUBTLE);
         graphics.disableScissor();
         if (hot) {
-            graphics.setComponentTooltipForNextFrame(this.font, List.of(Component.translatable(G + "close")), mouseX, mouseY);
+            BookGfx.componentTooltip(this, graphics, this.font, List.of(Component.translatable(G + "close")), mouseX, mouseY);
         }
     }
 
@@ -1488,7 +1502,7 @@ public class QuestBookScreen extends Screen {
                 int barColour = done ? COLOUR_COMPLETED : state == NodeState.LOCKED ? COLOUR_LOCKED : COLOUR_IN_PROGRESS;
                 BookPaint.bar(graphics, labelX, y + 12, right - labelX, 3, current / (float) target, barColour);
                 if (pointer && shown != label && mouseX >= labelX && mouseX < right && mouseY >= y && mouseY < y + 16) {
-                    graphics.setComponentTooltipForNextFrame(this.font, List.of(label), mouseX, mouseY);
+                    BookGfx.componentTooltip(this, graphics, this.font, List.of(label), mouseX, mouseY);
                 }
                 y += 19;
             }
@@ -1515,7 +1529,7 @@ public class QuestBookScreen extends Screen {
                 graphics.itemDecorations(this.font, stack, slotX + 2, y + 2);
                 if (pointer && mouseX >= slotX && mouseX < slotX + 20 && mouseY >= y && mouseY < y + 20) {
                     graphics.fill(slotX + 1, y + 1, slotX + 19, y + 19, BookPaint.alpha(0xFFFFFF, 0x30));
-                    graphics.setTooltipForNextFrame(this.font, stack, mouseX, mouseY);
+                    BookGfx.itemTooltip(this, graphics, this.font, stack, mouseX, mouseY);
                 }
                 slotX += 22;
                 anySlot = true;
@@ -1541,7 +1555,7 @@ public class QuestBookScreen extends Screen {
                 int drawn = BookPaint.chip(graphics, this.font, text, chipX, y, colour, right - chipX);
                 if (pointer && drawn < this.font.width(text) + 8 && mouseX >= chipX && mouseX < chipX + drawn
                         && mouseY >= y && mouseY < y + 11) {
-                    graphics.setComponentTooltipForNextFrame(this.font, List.of(text), mouseX, mouseY);
+                    BookGfx.componentTooltip(this, graphics, this.font, List.of(text), mouseX, mouseY);
                 }
                 chipX += drawn + 3;
                 anyChip = true;
@@ -1632,7 +1646,7 @@ public class QuestBookScreen extends Screen {
             this.toast = null;
             return;
         }
-        graphics.nextStratum();
+        BookGfx.nextStratum(graphics);
         Rect content = this.layout.content();
         int width = Math.max(40, Math.min(320, content.w() - 8));
         List<FormattedCharSequence> lines = this.font.split(this.toast, width - 12);
@@ -1866,14 +1880,56 @@ public class QuestBookScreen extends Screen {
     // from GLFW (left 0, right 1) to SDL (left 1, middle 2, right 3), and each MC version compiles its own
     // constants. A literal 0 silently made every left click on the graph and the chapter tabs a no-op on 26.3.
 
+    //? if <1.21.9 {
+    /*// Before 1.21.9 input arrives as loose values; these stand-ins carry them under the 1.21.9+ names so
+    // the handlers below stay one copy.
+    private record MouseButtonEvent(double x, double y, int button) {
+    }
+
+    private record KeyEvent(int key, int scancode, int modifiers) {
+        boolean isEscape() {
+            return this.key == InputConstants.KEY_ESCAPE;
+        }
+
+        boolean isConfirmation() {
+            return this.key == InputConstants.KEY_RETURN || this.key == InputConstants.KEY_SPACE
+                    || this.key == InputConstants.KEY_NUMPADENTER;
+        }
+
+        boolean isLeft() {
+            return this.key == InputConstants.KEY_LEFT;
+        }
+
+        boolean isRight() {
+            return this.key == InputConstants.KEY_RIGHT;
+        }
+
+        boolean isUp() {
+            return this.key == InputConstants.KEY_UP;
+        }
+
+        boolean isDown() {
+            return this.key == InputConstants.KEY_DOWN;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        MouseButtonEvent event = new MouseButtonEvent(mouseX, mouseY, button);
+    *///?} else {
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+    //?}
         this.pressX = event.x();
         this.pressY = event.y();
         this.dragged = false;
         this.drag = Drag.NONE;
         this.dragQuest = null;
+        //? if >=1.21.9 {
         if (super.mouseClicked(event, doubleClick)) {
+        //?} else {
+        /*if (super.mouseClicked(mouseX, mouseY, button)) {
+        *///?}
             return true;
         }
         setFocused(null);
@@ -1953,10 +2009,18 @@ public class QuestBookScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseDragged(MouseButtonEvent event, double dragX, double dragY) {
         if (this.drag == Drag.NONE) {
             return super.mouseDragged(event, dragX, dragY);
         }
+    //?} else {
+    /*public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        MouseButtonEvent event = new MouseButtonEvent(mouseX, mouseY, button);
+        if (this.drag == Drag.NONE) {
+            return super.mouseDragged(mouseX, mouseY, button, dragX, dragY);
+        }
+    *///?}
         if (Math.abs(event.x() - this.pressX) > 3.0D || Math.abs(event.y() - this.pressY) > 3.0D) {
             if (!this.dragged && this.drag == Drag.LOCKED) {
                 refuseLocked();
@@ -1971,7 +2035,12 @@ public class QuestBookScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean mouseReleased(MouseButtonEvent event) {
+    //?} else {
+    /*public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        MouseButtonEvent event = new MouseButtonEvent(mouseX, mouseY, button);
+    *///?}
         Drag was = this.drag;
         boolean wasDragged = this.dragged;
         Identifier quest = this.dragQuest;
@@ -1994,7 +2063,11 @@ public class QuestBookScreen extends Screen {
             // started on a node would also open it.
             handleClick(event.x(), event.y());
         }
+        //? if >=1.21.9 {
         return super.mouseReleased(event);
+        //?} else {
+        /*return super.mouseReleased(mouseX, mouseY, button);
+        *///?}
     }
 
     private void handleClick(double mouseX, double mouseY) {
@@ -2068,7 +2141,12 @@ public class QuestBookScreen extends Screen {
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean keyPressed(KeyEvent event) {
+    //?} else {
+    /*public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        KeyEvent event = new KeyEvent(keyCode, scanCode, modifiers);
+    *///?}
         // Escape steps back one level (overlay, editor tab, drawer, edit mode) before closing.
         if (event.isEscape()) {
             if (this.editor.escape()) {
@@ -2086,7 +2164,11 @@ public class QuestBookScreen extends Screen {
             return true;
         }
         // The same key that opened the book closes it, like the vanilla inventory — unless typing.
+        //? if >=1.21.9 {
         if (!typing() && QuestBookKeys.OPEN_QUEST_BOOK.matches(event)) {
+        //?} else {
+        /*if (!typing() && QuestBookKeys.OPEN_QUEST_BOOK.matches(event.key(), event.scancode())) {
+        *///?}
             onClose();
             return true;
         }
@@ -2133,11 +2215,20 @@ public class QuestBookScreen extends Screen {
                 return true;
             }
         }
+        //? if >=1.21.9 {
         return super.keyPressed(event);
+        //?} else {
+        /*return super.keyPressed(keyCode, scanCode, modifiers);
+        *///?}
     }
 
     @Override
+    //? if >=1.21.9 {
     public boolean keyReleased(KeyEvent event) {
+    //?} else {
+    /*public boolean keyReleased(int keyCode, int scanCode, int modifiers) {
+        KeyEvent event = new KeyEvent(keyCode, scanCode, modifiers);
+    *///?}
         int key = event.key();
         if (key == InputConstants.KEY_A || event.isLeft()) {
             this.panLeft = false;
@@ -2151,7 +2242,11 @@ public class QuestBookScreen extends Screen {
         if (key == InputConstants.KEY_S || event.isDown()) {
             this.panDown = false;
         }
+        //? if >=1.21.9 {
         return super.keyReleased(event);
+        //?} else {
+        /*return super.keyReleased(keyCode, scanCode, modifiers);
+        *///?}
     }
 
 }
