@@ -1,5 +1,7 @@
 # Project context for AI coding agents — neroquests
 
+> Modrinth is temporarily being removed from the upload and is no longer being referenced. Avoid making references to modrinth.
+
 > This and `CLAUDE.md` are kept identical; update both together.
 
 ## The mod
@@ -15,7 +17,7 @@
   with its own page under `wiki/`.
 - Mod id: **`neroquests`** (matches the registry namespace + every loader manifest). Package root:
   `za.co.neroland.neroquests`. Author: **Neroland**.
-- Version: **0.4.1-beta.1**.
+- Version: **0.5.1-beta.1**.
 - Requires **Neroland Core 1.15.0+** (`nerolandcore_version` in `gradle.properties`, resolved from
   `mavenLocal()`); manifests floor at that version and cap below 2.0.0. NeroEconomy is an optional
   `compileOnly` dependency.

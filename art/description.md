@@ -50,7 +50,7 @@ NeroQuests stores per-player quest progress — and keeps it minimal. It holds *
 
 ## Requirements & compatibility
 
-- **Requires [Neroland Core](https://modrinth.com/mod/nerolandcore)** — install it alongside NeroQuests (it loads first).
+- **Requires [Neroland Core](https://nerolandmc.net/mods/neroland-core/)** — install it alongside NeroQuests (it loads first).
 - Optional soft synergies enrich the tree: **NeroFactions**, **NeroEconomy**, **NeroEvents**, **NeroRuins**, **NeroCreatures** and **Nerospace**. Each is discovered through Core and degrades gracefully when absent.
 - Conventional `c:` tags let quest objectives reference Create, AE2, Mekanism, Ad Astra and Energized Power content as the 26.x ecosystem fills in — no hard dependency on any of them.
 - **Modpacks are allowed and encouraged** — any platform, no need to ask. Use the official files and credit *NeroQuests by Neroland* with links to the [CurseForge page](https://www.curseforge.com/minecraft/mc-mods/neroquests) and the [GitHub repository](https://github.com/Neroland/neroquests). Full terms: [LICENSE](https://github.com/Neroland/neroquests/blob/main/LICENSE).
