@@ -58,3 +58,4 @@ __pycache__/
 # node deps (e.g. tools/gradle-mcp markdownlint)
 node_modules/
 /fabric/versions/26.2/logs
+/neoforge/versions/26.3/logs
