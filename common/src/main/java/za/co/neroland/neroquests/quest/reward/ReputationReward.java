@@ -14,7 +14,7 @@ import za.co.neroland.neroquests.quest.RewardSpec;
  * Reward {@code neroquests:reputation} — shifts the player's standing with a faction through
  * Neroland Core's reputation contract.
  *
- * <pre>{@code { "type": "neroquests:reputation", "faction": "nerofactions:miners_union", "amount": 25 }}</pre>
+ * <pre>{@code { "type": "neroquests:reputation", "faction": "nerofactions:miner_union", "amount": 25 }}</pre>
  *
  * <p>{@code amount} is a <b>delta</b> and may be negative: a quest that sides with one faction can
  * legitimately cost you standing with its rival, so this is the one reward type that is allowed to

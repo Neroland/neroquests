@@ -117,7 +117,7 @@ class PackValidationTest {
     void packGateRewardIsDroppedWithTheRule() {
         Quest gate = quest("mypack:x/gate", "\"rewards\":[{\"type\":\"neroquests:gate\",\"gate\":\"nerolandcore:deep_space\"}]");
         Quest reputation = quest("mypack:x/rep", "\"rewards\":[{\"type\":\"neroquests:reputation\","
-                + "\"faction\":\"nerofactions:miners_union\",\"amount\":5}]");
+                + "\"faction\":\"nerofactions:miner_union\",\"amount\":5}]");
         QuestDefinitions.Validated result = validate(List.of(gate, reputation), List.of());
         assertTrue(result.quests().isEmpty());
         assertTrue(dropped(result, "mypack:x/gate").orElseThrow().detail()

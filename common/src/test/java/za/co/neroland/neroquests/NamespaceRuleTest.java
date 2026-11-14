@@ -35,7 +35,7 @@ class NamespaceRuleTest {
 
     private static final String GATE = "{\"type\":\"neroquests:gate\",\"gate\":\"nerolandcore:deep_space\"}";
     private static final String REPUTATION =
-            "{\"type\":\"neroquests:reputation\",\"faction\":\"nerofactions:miners_union\",\"amount\":5}";
+            "{\"type\":\"neroquests:reputation\",\"faction\":\"nerofactions:miner_union\",\"amount\":5}";
     private static final String ITEM = "{\"type\":\"neroquests:item\",\"item\":\"minecraft:stone\"}";
 
     @Test

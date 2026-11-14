@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2-beta.1] - 2026-11-14
+
+### Fixed
+
+- The reputation reward example in the quest-format documentation and the wiki now uses the real Miner Union id, `nerofactions:miner_union`.
+
 ## [0.5.1-beta.1] - 2026-10-31
 
 ### Changed

@@ -124,7 +124,7 @@ the credits (and are told so). The claim is world data and names nobody.
 ### `neroquests:reputation`
 
 ```json
-{ "type": "neroquests:reputation", "faction": "nerofactions:miners_union", "amount": 25 }
+{ "type": "neroquests:reputation", "faction": "nerofactions:miner_union", "amount": 25 }
 ```
 
 | Field | Type | Required | Default | Meaning |
