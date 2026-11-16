@@ -1,0 +1,91 @@
+name: Sync Minecraft translations
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'common/src/main/resources/assets/*/lang/en_us.json'
+      - '.github/workflows/sync-translations.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: sync-translations
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Sync locale files with English keys
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+
+          def unique_keys(entries):
+              result = {}
+              for key, value in entries:
+                  if key in result:
+                      raise ValueError(f"duplicate key: {key}")
+                  result[key] = value
+              return result
+
+
+          def load_strings(path):
+              try:
+                  data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys)
+                  if not isinstance(data, dict) or any(not isinstance(value, str) for value in data.values()):
+                      raise ValueError("expected a JSON object with string values")
+                  return data
+              except (OSError, ValueError) as exc:
+                  raise SystemExit(f"{path}: {exc}") from exc
+
+
+          assets = Path("common/src/main/resources/assets")
+          seed_locales = {"it_it", "zh_cn"}
+          writes = {}
+
+          for source in sorted(assets.glob("*/lang/en_us.json")):
+              english = load_strings(source)
+              if not english:
+                  raise SystemExit(f"{source}: English must contain at least one key")
+
+              # Weblate reads missing keys from English, and Minecraft falls back to English in-game.
+              for locale in sorted(seed_locales):
+                  target = source.with_name(f"{locale}.json")
+                  if not target.exists():
+                      writes[target] = "{}\n"
+
+              for target in sorted(source.parent.glob("*.json")):
+                  if target.stem.startswith("en_") or not re.fullmatch(r"[a-z]{2,3}_[a-z0-9]{2,3}", target.stem):
+                      continue
+                  translations = load_strings(target)
+                  if translations.keys() - english.keys():
+                      remaining = {key: value for key, value in translations.items() if key in english}
+                      writes[target] = json.dumps(remaining, ensure_ascii=False, indent=2) + "\n"
+
+          for path, content in writes.items():
+              path.write_text(content, encoding="utf-8")
+              print(f"Synced {path}")
+          PY
+
+      - name: Open or update translation PR
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8
+        with:
+          branch: automation/sync-translations
+          delete-branch: true
+          add-paths: ':(glob)common/src/main/resources/assets/*/lang/*.json'
+          commit-message: Sync Minecraft translation files
+          title: Sync Minecraft translation files
+          body: Create missing locale files and remove keys that were deleted from English. Existing translations for active keys are preserved.
