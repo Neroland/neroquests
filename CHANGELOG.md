@@ -11,8 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Your quest data now appears in Neroland Core's `/neroland data exportme` (Core 1.20.1): the same document as
+  `/neroquests export`, for online and offline players, with nothing added when NeroQuests stores nothing for you.
 - Milestone record gates for trophies and quest packs: `neroquests:chapter/<namespace>/<path>` for every loaded chapter (sibling chapters too), `neroquests:all_chapters`, `neroquests:completed/25` and `/100`, and `neroquests:first_contract`. They are derived from the completed-quest set NeroQuests already stores, checked after every quest completion (so earlier progress is credited on the next completion), and only the player's UUID goes into Neroland Core's gate store.
 - `SiblingPacksTest` now also validates the NeroMaps and NeroTrophies quest packs.
+
+### Changed
+
+- Builds against Neroland Core 1.20.1 (was 1.17.6), so Core 1.20.1 or later is required.
 
 ## [0.5.2] - 2026-11-21
 

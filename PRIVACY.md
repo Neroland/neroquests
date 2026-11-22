@@ -151,7 +151,10 @@ shared server-scoped progress are included.
 - admins: `/neroquests export <player>` (permission level 3, run by a player or the console), where `<player>` is an
   online player's name or a raw UUID, so a player who has left the server can still be
   exported. The JSON is printed to the operator who ran the command and to nobody else.
-- in code: `QuestProgressState.exportPlayer(server, uuid)` and `CustomQuestState.get(server).export(uuid)`.
+- players: Neroland Core's `/neroland data exportme` (Core 1.20.1 or later) includes the same document under
+  `neroquests`, alongside every other Nero mod's data. It is handed to the requester only, never logged or
+  written to disk, and NeroQuests adds nothing when it stores nothing for that player.
+- in code: `QuestData.document(server, uuid)`, which combines `QuestProgressState.exportPlayer(server, uuid)` and `CustomQuestState.get(server).export(uuid)`.
 
 The matching admin controls are `/neroquests reset <player>` (wipe one player's quest
 progress) and `/neroquests reset <player> <quest>` / `/neroquests revoke <player> <quest>`

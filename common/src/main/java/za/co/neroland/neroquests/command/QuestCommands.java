@@ -846,9 +846,9 @@ public final class QuestCommands {
         if (player == null) {
             return 0;
         }
-        JsonObject json = QuestProgressState.exportPlayer(server, player);
-        // F3: custom quests this player authored (their own text) and their editor allow-list membership.
-        json.add("custom_quests", CustomQuestState.get(server).export(player));
+        // F3: includes the custom quests this player authored and their editor allow-list membership. The same
+        // document Core's /neroland data exportme carries (QuestData.document).
+        JsonObject json = za.co.neroland.neroquests.data.QuestData.document(server, player);
         AdminActions.record(AdminActions.Kind.EXPORT);
         // AUD-25: the console's output *is* the server log, so a console export never echoes the UUID;
         // the rows themselves hold no UUID or name, and nothing here goes through LOGGER.
