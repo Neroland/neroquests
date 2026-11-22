@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-11-26
+
+### Added
+
+- Milestone record gates for trophies and quest packs: `neroquests:chapter/<namespace>/<path>` for every loaded chapter (sibling chapters too), `neroquests:all_chapters`, `neroquests:completed/25` and `/100`, and `neroquests:first_contract`. They are derived from the completed-quest set NeroQuests already stores, checked after every quest completion (so earlier progress is credited on the next completion), and only the player's UUID goes into Neroland Core's gate store.
+- `SiblingPacksTest` now also validates the NeroMaps and NeroTrophies quest packs.
+
 ## [0.5.2] - 2026-11-21
 
 ### Changed

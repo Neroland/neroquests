@@ -27,7 +27,8 @@ class SiblingPacksTest {
      */
     private static final List<String> SIBLINGS = List.of("nerospace", "nerotech", "neropower", "nerologistics",
             "neroeconomy", "nerocolonies", "nerocreatures", "neroagriculture", "nerodecor", "nerofactions",
-            "neronotes", "neroevents", "neroruins", "nerocompanion", "nerosecurity", "neroarcade");
+            "neronotes", "neroevents", "neroruins", "nerocompanion", "nerosecurity", "neroarcade",
+            "neromaps", "nerotrophies");
 
     /** NeroQuests' common resources root (same lookup as the other content tests). */
     private static Path resources() {

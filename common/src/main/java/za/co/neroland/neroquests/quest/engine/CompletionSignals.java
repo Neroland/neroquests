@@ -5,11 +5,13 @@ import java.util.Optional;
 import java.util.Set;
 
 import net.minecraft.resources.Identifier;
+import net.minecraft.server.MinecraftServer;
 
 import za.co.neroland.nerolandcore.event.ThresholdEvents;
 import za.co.neroland.nerolandcore.event.ThresholdEvents.ThresholdCrossing;
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.data.QuestProgressState;
+import za.co.neroland.neroquests.progression.QuestMilestones;
 import za.co.neroland.neroquests.quest.Chapter;
 import za.co.neroland.neroquests.quest.Quest;
 import za.co.neroland.neroquests.quest.QuestDefinitions;
@@ -65,6 +67,8 @@ public final class CompletionSignals {
         long count = state.recordQuestCompletion(quest.id());
         ThresholdEvents.fire(NeroQuestsCommon.MOD_ID, questCrossing(quest.id(), count));
 
+        recordMilestones(completion, state);
+
         Optional<Identifier> chapterId = QuestDefinitions.chapterOf(quest.id());
         if (chapterId.isEmpty()) {
             return;
@@ -75,6 +79,17 @@ public final class CompletionSignals {
             long chapterCount = state.recordChapterCompletion(chapter.id());
             ThresholdEvents.fire(NeroQuestsCommon.MOD_ID, chapterCrossing(chapter.id(), chapterCount));
         }
+    }
+
+    /**
+     * Open the player's quest milestone record gates (chapter complete, all chapters, completed counts), derived
+     * from the progress already stored. A server-scope quest credits only the player whose action finished it.
+     */
+    private static void recordMilestones(QuestCompletion completion, QuestProgressState state) {
+        MinecraftServer server = completion.server();
+        QuestMilestones.record(server, completion.player(), QuestMilestones.reached(
+                QuestDefinitions.chaptersForServer(server), QuestDefinitions.questsForServer(server),
+                state.completedQuests(completion.player()), state.completedServerQuests()));
     }
 
     /** The crossing for one quest completion: scope = quest id, value = threshold = world count. */

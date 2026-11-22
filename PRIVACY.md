@@ -48,6 +48,11 @@ other mods on Neroland Core's event bus (the quest or chapter id and that world 
 quest pack's `mod_hook` reward opens a Neroland Core progression gate for the completing player; that
 gate row is kept, exported and erased by Neroland Core like every other gate.
 
+NeroQuests also opens a few milestone record gates for the player, in Neroland Core's progression store:
+`neroquests:chapter/<chapter>` when every loaded quest of a chapter is complete, `neroquests:all_chapters`,
+`neroquests:completed/25` and `/100`, and `neroquests:first_contract`. They are worked out from the quest
+progress above (no new counter is kept), and Neroland Core keeps, exports and erases them with your other gates.
+
 ### Economy integration
 
 With an economy mod installed (NeroEconomy), NeroQuests pays credit rewards through its budgeted

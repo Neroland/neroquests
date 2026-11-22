@@ -14,6 +14,7 @@ import net.minecraft.world.item.ItemStack;
 import za.co.neroland.neroquests.compat.neroeconomy.EconomyCompat;
 import za.co.neroland.neroquests.config.NeroQuestsConfig;
 import za.co.neroland.neroquests.data.QuestProgressState;
+import za.co.neroland.neroquests.progression.QuestMilestones;
 import za.co.neroland.neroquests.quest.reward.CurrencyPayouts;
 import za.co.neroland.neroquests.quest.reward.CurrencyReward;
 
@@ -125,6 +126,7 @@ public final class DailyContracts {
         }
         take(player, contract);
         QuestProgressState.get(server).markContractDone(player.getUUID(), today(), contract.id());
+        QuestMilestones.recordFirstContract(server, player.getUUID());
         boolean paid = CurrencyPayouts.pay(server, player.getUUID(), player, CurrencyReward.DEFAULT_CURRENCY,
                 contract.reward(), EconomyCompat.REASON_CONTRACT, CurrencyPayouts.CONTRACT_KEY_PREFIX, contract.id());
         return paid ? Result.PAID : Result.OWED;
