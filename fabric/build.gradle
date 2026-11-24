@@ -13,6 +13,7 @@ plugins {
 
 // MC version comes from the Stonecutter node (e.g. :fabric:26.1.2), not a global property.
 def mc = stonecutter.current.version
+def economyApiMc = mc.startsWith('1.20.') ? '1.21.1' : mc
 // Minecraft before 26.1 ships obfuscated, so those cells need mappings and a remapped jar.
 def obfuscated = mc.startsWith('1.')
 apply plugin: obfuscated ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
@@ -129,9 +130,9 @@ dependencies {
     // bundled, never required. Only common's compat/neroeconomy bridge references it, after isModLoaded.
     if (obfuscated) {
         // 1.21.x: NeroEconomy is an intermediary-named mod jar there, so Loom must remap it.
-        modCompileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${mc}:${rootProject.neroeconomy_version}"
+        modCompileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${rootProject.neroeconomy_version}"
     } else {
-        compileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${mc}:${rootProject.neroeconomy_version}"
+        compileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${rootProject.neroeconomy_version}"
     }
 
     // Sentry SDK (telemetry/NeroQuestsTelemetry): compile against it + embed it as a jar-in-jar so the

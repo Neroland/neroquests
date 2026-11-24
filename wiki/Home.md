@@ -3,10 +3,8 @@
 Player- and contributor-facing documentation for **NeroQuests**, part of the Neroland
 sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
-> **Status:** beta (version `0.4.1-beta.1`). The quest engine, rewards, sync, the quest book, the
-> built-in three-chapter story line, quest packs from other mods and the in-book quest editor are in;
-> pages grow as features arrive. Keep this wiki updated alongside code changes
-> (see [`../AGENTS.md`](../AGENTS.md) / [`../CLAUDE.md`](../CLAUDE.md)).
+NeroQuests requires **Neroland Core 1.23.0 or newer** (below 2.0). Minecraft 1.20.5 runs on
+Fabric, and 1.20.6 runs on Fabric, Forge and NeoForge.
 
 ## Contents
 

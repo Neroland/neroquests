@@ -10,6 +10,7 @@ plugins {
 
 // MC version comes from the Stonecutter node (e.g. :forge:26.1.2), not a global property.
 def mc = stonecutter.current.version
+def economyApiMc = mc.startsWith('1.20.') ? '1.21.1' : mc
 def forgeVersion = project.findProperty("forge_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
 def emiFile = project.findProperty("emi_file_neoforge_${mc}")
@@ -124,7 +125,7 @@ dependencies {
 
     // NeroEconomy — OPTIONAL. Compile-time API only (budgeted quest payouts, economy objective events); never
     // bundled, never required. Only common's compat/neroeconomy bridge references it, after isModLoaded.
-    compileOnly "za.co.neroland.neroeconomy:neroeconomy-forge-${mc}:${rootProject.neroeconomy_version}"
+    compileOnly "za.co.neroland.neroeconomy:neroeconomy-forge-${economyApiMc}:${rootProject.neroeconomy_version}"
 
     implementation 'io.sentry:sentry:8.64.0'
     jarJar(group: 'io.sentry', name: 'sentry', version: '8.45.0')

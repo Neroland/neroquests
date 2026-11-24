@@ -49,10 +49,10 @@ stonecutter {
     create(rootProject) {
         // 1.21.x: one cell per API line (1.21.8 also covers 1.21.7, 1.21.10 also covers 1.21.9 - see
         // mc_floor_<v> / mc_ceiling_<v> in gradle.properties).
-        def mcVersions = ['1.21.1', '1.21.4', '1.21.5', '1.21.8', '1.21.10', '1.21.11', '26.1.2', '26.2', '26.3']
+        def mcVersions = providers.gradleProperty('mc_versions').get().split(',')
         branch('fabric')   { versions(*mcVersions) }
-        branch('neoforge') { versions(*mcVersions) }
-        branch('forge')    { versions(*mcVersions) }
+        branch('neoforge') { versions(*mcVersions.findAll { it != '1.20.5' }) }
+        branch('forge')    { versions(*mcVersions.findAll { it != '1.20.5' }) }
         vcsVersion = '26.2'   // reset point for commits / default checkout
     }
 }

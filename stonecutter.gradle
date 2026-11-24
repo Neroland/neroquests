@@ -29,6 +29,8 @@ ext.legacyRenames = [
     // 1.21.11 renamed ResourceLocation -> Identifier and ResourceKey.location() -> identifier().
     [below: '1.21.11', from: /\bIdentifier\b/, to: 'ResourceLocation'],
     [below: '1.21.11', from: /\.identifier\(\)/, to: '.location()'],
+    [below: '1.21', from: /\b((?:net\.minecraft\.resources\.)?ResourceLocation)\s*\.(?:fromNamespaceAndPath|parse|withDefaultNamespace)\(/, to: 'new $1('],
+    [below: '1.21', from: /\bResourceLocation::parse\b/, to: 'ResourceLocation::new'],
     // 26.1 renamed GuiGraphics -> GuiGraphicsExtractor and its drawString(..) -> text(..). The text()
     // rename is keyed on the receiver names this codebase uses for the graphics object (g / graphics).
     [below: '26.1', from: /\bGuiGraphicsExtractor\b/, to: 'GuiGraphics'],
@@ -90,6 +92,23 @@ subprojects {
     // Java 22+ language features). 26.x cells stay on Java 25. A node's project name IS its MC version.
     def javaRelease = project.name.startsWith('1.') ? 21 : 25
     ext.javaRelease = javaRelease
+
+    if (project.name.startsWith('1.20.')) {
+        tasks.named('processResources') {
+            eachFile { file ->
+                file.path = file.path.replaceFirst(/^(data\/[^\/]+\/)(advancement|loot_table|recipe)\//, '$1$2s/')
+                        .replaceFirst(/^(data\/[^\/]+\/tags\/)(block|entity_type|fluid|item)\//, '$1$2s/')
+            }
+            includeEmptyDirs = false
+            doLast {
+                def metadata = new File(destinationDir, 'pack.mcmeta')
+                def pack = new groovy.json.JsonSlurper().parse(metadata).pack
+                metadata.setText(groovy.json.JsonOutput.toJson([
+                        pack: [description: pack.description, pack_format: 32, supported_formats: [32, 41]]
+                ]), 'UTF-8')
+            }
+        }
+    }
 
     java {
         toolchain.languageVersion = JavaLanguageVersion.of(javaRelease)

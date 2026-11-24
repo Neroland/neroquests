@@ -29,10 +29,11 @@ A native, datapack-driven quest engine for the Neroland ecosystem:
 
 ## Build targets
 
-- **Minecraft:** 26.1.2, 26.2 and 26.3
-- **Loaders:** NeoForge, MinecraftForge/Forge, Fabric (the "9 cells")
-- **Java:** 25
-- **Requires:** Neroland Core 1.15.0 or later (below 2.0.0)
+- **Fabric only:** Minecraft 1.20.5
+- **Fabric, Forge and NeoForge:** Minecraft 1.20.6, 1.21.1, 1.21.4, 1.21.5, 1.21.7–1.21.8,
+  1.21.9–1.21.10, 1.21.11, 26.1.2, 26.2 and 26.3
+- **Java:** 21 for Minecraft 1.x and 25 for 26.x
+- **Requires:** Neroland Core 1.23.0 or later (below 2.0.0)
 - Mod id: `neroquests` · package `za.co.neroland.neroquests`
 
 ## Layout
