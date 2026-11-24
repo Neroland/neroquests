@@ -121,34 +121,37 @@ subprojects {
 
     repositories {
         mavenLocal() // Neroland Core (nerolandcore-<loader>-<mc>) published locally; see USING-CORE.md
-        // Neroland Core from GitHub Packages — resolves in CI and on fresh clones, where mavenLocal is
-        // empty. mavenLocal() above still wins for local devs who run Core's publishToMavenLocal.
-        // Auth: gradle props gpr.user/gpr.key, else env GITHUB_ACTOR/GITHUB_TOKEN. Lazy getOrNull() so a
-        // local build that resolves Core from mavenLocal never needs a token. See USING-CORE.md.
-        maven {
-            name = 'NerolandCoreGitHubPackages'
-            url = 'https://maven.pkg.github.com/Neroland/neroland-core'
-            credentials {
-                username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
-                password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
-            }
-            content { includeGroup 'za.co.neroland.nerolandcore' }
-        }
-        // NeroEconomy (OPTIONAL, compileOnly API only) from GitHub Packages. Declared ONLY when credentials are
-        // present: a Maven repo with a null username fails the whole resolve instead of falling through, so a
-        // tokenless local build must not see it (it resolves NeroEconomy from mavenLocal() above).
-        def neGprUser = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
-        def neGprKey = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
-        if (neGprUser != null && neGprKey != null) {
-            maven {
-                name = 'NeroEconomyGitHubPackages'
-                url = 'https://maven.pkg.github.com/Neroland/neroeconomy'
-                credentials {
-                    username = neGprUser
-                    password = neGprKey
+        def gprUser = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrNull()
+        def gprKey = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrNull()
+        if (gprUser != null && gprKey != null) {
+            def addPackages = { String repoName, String repoSlug, String packageGroup ->
+                def configurePackage = { repo ->
+                    repo.name = repoName
+                    repo.url = uri("https://maven.pkg.github.com/Neroland/$repoSlug")
+                    repo.credentials {
+                        username = gprUser
+                        password = gprKey
+                    }
+                    repo.authentication { basic(org.gradle.authentication.http.BasicAuthentication) }
+                    repo.content { includeGroup packageGroup }
                 }
-                content { includeGroup 'za.co.neroland.neroeconomy' }
+                // ForgeGradle forwards Maven repository URLs to Mavenizer without credentials or content filters.
+                // The sibling publications are dependency-free jars at Maven-layout paths.
+                if (project.parent?.name == 'forge') {
+                    ivy { repo ->
+                        configurePackage(repo)
+                        patternLayout {
+                            m2compatible = true
+                            artifact '[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+                        }
+                        metadataSources { artifact() }
+                    }
+                } else {
+                    maven { repo -> configurePackage(repo) }
+                }
             }
+            addPackages('NerolandCoreGitHubPackages', 'neroland-core', 'za.co.neroland.nerolandcore')
+            addPackages('NeroEconomyGitHubPackages', 'neroeconomy', 'za.co.neroland.neroeconomy')
         }
         mavenCentral()
         maven { url 'https://maven.fabricmc.net/' }
