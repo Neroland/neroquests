@@ -29,7 +29,11 @@ public interface RewardSpec {
 
     /** Dispatches on the {@code type} field to the codec registered in {@link RewardTypes}. */
     Codec<RewardSpec> CODEC =
+            //? if >=1.20.5 {
             Identifier.CODEC.<RewardSpec>dispatch("type", RewardSpec::typeId, RewardTypes::codecFor);
+            //?} else {
+            /*Identifier.CODEC.<RewardSpec>dispatch("type", RewardSpec::typeId, id -> RewardTypes.codecFor(id).codec());
+            *///?}
 
     /** The registered type id of this reward (its {@code type} field in JSON). */
     Identifier typeId();

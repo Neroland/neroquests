@@ -58,9 +58,16 @@ public final class ForgeQuestClientEvents {
         /*// Forge 1.21.6 - 1.21.8: key mappings are a mod-bus event, reached through the mod's bus group.
         RegisterKeyMappingsEvent.getBus(modBusGroup).addListener(event -> event.register(QuestBookKeys.OPEN_QUEST_BOOK));
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> QuestBookKeys.tick());
-        *///?} else {
+        *///?} else if >=1.20.5 {
         /*modEventBus.addListener((RegisterKeyMappingsEvent event) -> event.register(QuestBookKeys.OPEN_QUEST_BOOK));
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent.Post event) -> QuestBookKeys.tick());
+        *///?} else {
+        /*modEventBus.addListener((RegisterKeyMappingsEvent event) -> event.register(QuestBookKeys.OPEN_QUEST_BOOK));
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) {
+                QuestBookKeys.tick();
+            }
+        });
         *///?}
     }
 }

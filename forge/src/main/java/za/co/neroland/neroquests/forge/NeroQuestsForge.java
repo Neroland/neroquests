@@ -13,7 +13,12 @@ import za.co.neroland.neroquests.NeroQuestsCommon;
 @Mod(NeroQuestsCommon.MOD_ID)
 public final class NeroQuestsForge {
 
+    //? if >=1.20.5 {
     public NeroQuestsForge(FMLJavaModLoadingContext context) {
+    //?} else {
+    /*public NeroQuestsForge() {
+        FMLJavaModLoadingContext context = FMLJavaModLoadingContext.get();
+    *///?}
         NeroQuestsCommon.LOGGER.info("[NeroQuests] Forge bootstrap");
         // Common init declares the payloads; the channel below is sealed the moment it is built,
         // so that ordering is mandatory on Forge.

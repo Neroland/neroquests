@@ -51,7 +51,11 @@ public interface ObjectiveSpec {
 
     /** Dispatches on the {@code type} field to the codec registered in {@link ObjectiveTypes}. */
     Codec<ObjectiveSpec> CODEC =
+            //? if >=1.20.5 {
             Identifier.CODEC.<ObjectiveSpec>dispatch("type", ObjectiveSpec::typeId, ObjectiveTypes::codecFor);
+            //?} else {
+            /*Identifier.CODEC.<ObjectiveSpec>dispatch("type", ObjectiveSpec::typeId, id -> ObjectiveTypes.codecFor(id).codec());
+            *///?}
 
     /** The registered type id of this objective (its {@code type} field in JSON). */
     Identifier typeId();

@@ -1,5 +1,6 @@
 package za.co.neroland.neroquests.forge;
 
+//? if >=1.20.5 {
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -91,3 +92,104 @@ public final class ForgeQuestNetwork implements NetworkPlatform {
         }
     }
 }
+//?} else {
+/*import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.network.NetworkDirection;
+//? if >=1.20.2 {
+import net.minecraftforge.network.ChannelBuilder;
+import net.minecraftforge.network.SimpleChannel;
+//?} else {
+import net.minecraftforge.network.NetworkRegistry;
+import net.minecraftforge.network.PacketDistributor;
+import net.minecraftforge.network.simple.SimpleChannel;
+//?}
+
+import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.network.QuestNetwork;
+import za.co.neroland.nerolandcore.network.legacy.LegacyPayload;
+import za.co.neroland.neroquests.platform.NetworkPlatform;
+
+public final class ForgeQuestNetwork implements NetworkPlatform {
+    private static final int PROTOCOL_VERSION = 1;
+    private static SimpleChannel channel;
+
+    public static void register() {
+        //? if >=1.20.2 {
+        channel = ChannelBuilder.named(new ResourceLocation(NeroQuestsCommon.MOD_ID, "main"))
+                .networkProtocolVersion(PROTOCOL_VERSION).optional().simpleChannel();
+        //?} else {
+        channel = NetworkRegistry.newSimpleChannel(new ResourceLocation(NeroQuestsCommon.MOD_ID, "main"),
+                () -> Integer.toString(PROTOCOL_VERSION), ForgeQuestNetwork::acceptVersion, ForgeQuestNetwork::acceptVersion);
+        //?}
+        int id = 0;
+        for (QuestNetwork.Clientbound<?> packet : QuestNetwork.clientbound()) {
+            registerClientbound(packet, id++);
+        }
+        for (QuestNetwork.Serverbound<?> packet : QuestNetwork.serverbound()) {
+            registerServerbound(packet, id++);
+        }
+    }
+
+    //? if <1.20.2 {
+    private static boolean acceptVersion(String version) {
+        return Integer.toString(PROTOCOL_VERSION).equals(version) || NetworkRegistry.ABSENT.version().equals(version)
+                || NetworkRegistry.ACCEPTVANILLA.equals(version);
+    }
+    //?}
+
+    private static <T extends LegacyPayload> void registerClientbound(QuestNetwork.Clientbound<T> packet, int id) {
+        channel.messageBuilder(packet.type().payloadClass(), id, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder((payload, buffer) -> packet.codec().encode(buffer, payload))
+                .decoder(packet.codec()::decode)
+                .consumerMainThread((payload, context) -> packet.handler().accept(payload))
+                .add();
+    }
+
+    private static <T extends LegacyPayload> void registerServerbound(QuestNetwork.Serverbound<T> packet, int id) {
+        channel.messageBuilder(packet.type().payloadClass(), id, NetworkDirection.PLAY_TO_SERVER)
+                .encoder((payload, buffer) -> packet.codec().encode(buffer, payload))
+                .decoder(packet.codec()::decode)
+                .consumerMainThread((payload, context) -> {
+                    //? if >=1.20.2 {
+                    ServerPlayer player = context.getSender();
+                    //?} else {
+                    ServerPlayer player = context.get().getSender();
+                    //?}
+                    if (player != null) {
+                        packet.handler().accept(payload, player);
+                    }
+                })
+                .add();
+    }
+
+    @Override
+    public void sendToPlayer(ServerPlayer player, LegacyPayload payload) {
+        //? if >=1.20.2 {
+        var connection = player.connection.getConnection();
+        //?} else {
+        var connection = player.connection.connection;
+        //?}
+        if (channel != null && channel.isRemotePresent(connection)) {
+            //? if >=1.20.2 {
+            channel.send(payload, connection);
+            //?} else {
+            channel.send(PacketDistributor.PLAYER.with(() -> player), payload);
+            //?}
+        }
+    }
+
+    @Override
+    public void sendToServer(LegacyPayload payload) {
+        var connection = Minecraft.getInstance().getConnection();
+        if (channel != null && connection != null && channel.isRemotePresent(connection.getConnection())) {
+            //? if >=1.20.2 {
+            channel.send(payload, connection.getConnection());
+            //?} else {
+            channel.sendToServer(payload);
+            //?}
+        }
+    }
+}
+*///?}

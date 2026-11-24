@@ -42,10 +42,13 @@ public record VisitStructureObjective(Optional<Identifier> structure, Optional<I
             inst -> inst.group(
                     Identifier.CODEC.optionalFieldOf("structure").forGetter(VisitStructureObjective::structure),
                     Identifier.CODEC.optionalFieldOf("tag").forGetter(VisitStructureObjective::tag)
-            ).apply(inst, VisitStructureObjective::new))
-            .validate(objective -> objective.structure().isPresent() == objective.tag().isPresent()
-                    ? DataResult.error(() -> "a visit_structure objective takes exactly one of 'structure' or 'tag'")
-                    : DataResult.success(objective));
+            ).apply(inst, VisitStructureObjective::new)).flatXmap(VisitStructureObjective::validateTarget, VisitStructureObjective::validateTarget);
+
+    private static DataResult<VisitStructureObjective> validateTarget(VisitStructureObjective objective) {
+        return objective.structure().isPresent() == objective.tag().isPresent()
+                ? DataResult.error(() -> "a visit_structure objective takes exactly one of 'structure' or 'tag'")
+                : DataResult.success(objective);
+    }
 
     @Override
     public Identifier typeId() {
@@ -60,11 +63,14 @@ public record VisitStructureObjective(Optional<Identifier> structure, Optional<I
         }
         boolean inside;
         if (structure.isPresent()) {
-            // The holder-predicate overload exists on every supported version (26.3 dropped the
-            // Structure one).
             Identifier wanted = structure.get();
+            //? if >=1.20.5 {
             inside = level.structureManager().getStructureWithPieceAt(context.player().blockPosition(),
                     holder -> holder.is(wanted)).isValid();
+            //?} else {
+            /*inside = level.structureManager().getStructureWithPieceAt(context.player().blockPosition(),
+                    net.minecraft.resources.ResourceKey.create(Registries.STRUCTURE, wanted)).isValid();
+            *///?}
         } else {
             inside = level.structureManager().getStructureWithPieceAt(context.player().blockPosition(),
                     TagKey.create(Registries.STRUCTURE, tag.get())).isValid();

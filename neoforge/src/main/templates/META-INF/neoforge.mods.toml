@@ -43,6 +43,6 @@ side = "BOTH"
 [[dependencies.${mod_id}]]
 modId = "neroeconomy"
 type = "optional"
-versionRange = "[0.3.0-beta.1,)"
+versionRange = "${neroeconomy_version_range}"
 ordering = "AFTER"
 side = "BOTH"

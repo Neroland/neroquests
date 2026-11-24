@@ -43,8 +43,13 @@ public record QuestProgressPayload(List<Row> own, List<Row> server) implements C
     /** An empty snapshot. */
     public static final QuestProgressPayload EMPTY = new QuestProgressPayload(List.of(), List.of());
 
+    //? if >=1.20.5 {
     public static final Type<QuestProgressPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_progress"));
+    //?} else {
+    /*public static final Type<QuestProgressPayload> TYPE =
+            new Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_progress"), QuestProgressPayload.class);
+    *///?}
 
     public static final StreamCodec<RegistryFriendlyByteBuf, QuestProgressPayload> STREAM_CODEC =
             StreamCodec.of(QuestProgressPayload::write, QuestProgressPayload::read);

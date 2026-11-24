@@ -4,7 +4,6 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
-import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
@@ -83,17 +82,17 @@ public record ItemReward(Identifier item, int count) implements RewardSpec {
         }
         int total = Math.min(Math.max(count, 1), MAX_COUNT);
         if (!OwedDelivery.canReceive(player)) {
-            OwedDelivery.keepItem(context.server(), context.playerId(), player, resolved, total,
-                    DataComponentPatch.EMPTY, context.quest().id());
+            OwedDelivery.keepItem(context.server(), context.playerId(), player, new ItemStack(resolved), total,
+                    context.quest().id());
             return;
         }
-        int remaining = OwedDelivery.insert(player, resolved, total, DataComponentPatch.EMPTY);
+        int remaining = OwedDelivery.insert(player, resolved, total);
         if (remaining <= 0) {
             return;
         }
         if (!NeroQuestsConfig.OWED_ITEMS_DROP_WHEN_FULL.get().booleanValue()) {
-            OwedDelivery.keepItem(context.server(), context.playerId(), player, resolved, remaining,
-                    DataComponentPatch.EMPTY, context.quest().id());
+            OwedDelivery.keepItem(context.server(), context.playerId(), player, new ItemStack(resolved), remaining,
+                    context.quest().id());
             return;
         }
         int perStack = Math.max(1, new ItemStack(resolved).getMaxStackSize());

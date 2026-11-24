@@ -61,10 +61,7 @@ public record CurrencyReward(Identifier currency, long amount, boolean oncePerWo
                     .forGetter(CurrencyReward::currency),
             // Codec has no longRange, so validate by hand: a reward pays out, it never charges, and one
             // reward is capped (AUD-22) so a pack typo cannot mint unbounded money.
-            Codec.LONG.validate(value -> value != null && value.longValue() >= 1L
-                            && value.longValue() <= MAX_AMOUNT
-                            ? DataResult.success(value)
-                            : DataResult.error(() -> "a currency reward's 'amount' must be 1 to " + MAX_AMOUNT))
+            Codec.LONG.flatXmap(CurrencyReward::validateReward, CurrencyReward::validateReward)
                     .fieldOf("amount").forGetter(CurrencyReward::boxedAmount),
             Codec.BOOL.optionalFieldOf("once_per_world", Boolean.FALSE).forGetter(CurrencyReward::boxedOnce)
     ).apply(inst, CurrencyReward::of));
@@ -136,5 +133,10 @@ public record CurrencyReward(Identifier currency, long amount, boolean oncePerWo
             }
         }
         return false;
+    }
+    private static DataResult<Long> validateReward(Long value) {
+        return value != null && value.longValue() >= 1L && value.longValue() <= MAX_AMOUNT
+                ? DataResult.success(value)
+                : DataResult.error(() -> "a currency reward's 'amount' must be 1 to " + MAX_AMOUNT);
     }
 }

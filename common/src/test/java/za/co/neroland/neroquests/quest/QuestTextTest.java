@@ -9,7 +9,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.contents.PlainTextContents;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
 
@@ -28,8 +27,7 @@ class QuestTextTest {
     void customTextIsALiteralNeverAKey() {
         String hostile = "quest.neroquests.groundwork.title {\"text\":\"x\",\"clickEvent\":{}}";
         Component title = QuestText.title(quest("custom:abcd2345/efgh6723", hostile));
-        PlainTextContents contents = assertInstanceOf(PlainTextContents.class, title.getContents());
-        assertEquals(hostile, contents.text());
+        assertEquals(Component.literal(hostile).getContents(), title.getContents());
     }
 
     @Test

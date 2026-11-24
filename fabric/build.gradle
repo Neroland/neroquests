@@ -13,7 +13,9 @@ plugins {
 
 // MC version comes from the Stonecutter node (e.g. :fabric:26.1.2), not a global property.
 def mc = stonecutter.current.version
-def economyApiMc = mc.startsWith('1.20.') ? '1.21.1' : mc
+def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
+def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
+def economyApiVersion = legacyEconomyApi ? rootProject.neroeconomy_version_pre_components : rootProject.neroeconomy_version
 // Minecraft before 26.1 ships obfuscated, so those cells need mappings and a remapped jar.
 def obfuscated = mc.startsWith('1.')
 apply plugin: obfuscated ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
@@ -76,8 +78,7 @@ publishing {
 sourceSets.main.java.srcDir rootProject.ext.commonJava
 sourceSets.main.resources.srcDir rootProject.ext.commonResources
 
-// Shared JUnit tests (common/src/test/java, AUD-27). Compiled on every Fabric cell so drift shows up, but
-// RUN only on the 26.2 cell (one cell is enough: the tests exercise codecs and bundled data, not MC glue).
+// Compile shared tests on every Fabric cell. Run the full suite on 26.2 and the compatibility tests on Java 17.
 sourceSets.test.java.srcDir rootProject.ext.commonTest
 
 dependencies {
@@ -88,7 +89,13 @@ dependencies {
 
 tasks.named('test', Test) {
     useJUnitPlatform()
-    enabled = (mc == '26.2')
+    enabled = mc == '26.2' || legacyEconomyApi
+    if (legacyEconomyApi) {
+        filter {
+            includeTestsMatching 'za.co.neroland.neroquests.network.EditorPayloadsTest'
+            includeTestsMatching 'za.co.neroland.neroquests.quest.reward.LegacyOwedItemTest'
+        }
+    }
     // The bundled-content test reads the shared resources by file path (machine-independent: resolved here).
     systemProperty 'neroquests.commonResources', rootProject.ext.commonResources
     // K3: the microbenchmark (custom/PerformanceBench) runs only with -PneroquestsBench; never in CI.
@@ -130,9 +137,9 @@ dependencies {
     // bundled, never required. Only common's compat/neroeconomy bridge references it, after isModLoaded.
     if (obfuscated) {
         // 1.21.x: NeroEconomy is an intermediary-named mod jar there, so Loom must remap it.
-        modCompileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${rootProject.neroeconomy_version}"
+        modCompileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${economyApiVersion}"
     } else {
-        compileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${rootProject.neroeconomy_version}"
+        compileOnly "za.co.neroland.neroeconomy:neroeconomy-fabric-${economyApiMc}:${economyApiVersion}"
     }
 
     // Sentry SDK (telemetry/NeroQuestsTelemetry): compile against it + embed it as a jar-in-jar so the
@@ -175,6 +182,8 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_license          : rootProject.mod_license,
         fabric_loader_version: rootProject.fabric_loader_version,
         // Pinned to this cell: >=26.2 <26.3 on the 26.2 cell, >=1.21.7 <1.21.9 on the 1.21.8 cell, and so on.
+        neroeconomy_minimum: legacyEconomyApi ? economyApiVersion : '0.3.0-beta.1',
+        java_version: project.javaRelease,
         minecraft_version_range: ">=${mcFloor} <${mcCeiling}",
         // Floor the required Core version at what we compile against so the loader refuses to
         // run NeroQuests against a Core too old to have the APIs it references.

@@ -1,6 +1,7 @@
 package za.co.neroland.neroquests.quest.objective;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
@@ -28,8 +29,17 @@ public record ManualObjective(String label) implements ObjectiveSpec {
     public static final Identifier TYPE_ID =
             Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "manual");
 
+    private static final Codec<String> LABEL = Codec.STRING.flatXmap(ManualObjective::validateLabel,
+            ManualObjective::validateLabel);
+
+    private static DataResult<String> validateLabel(String label) {
+        return label.length() >= 1 && label.length() <= 256
+                ? DataResult.success(label)
+                : DataResult.error(() -> "a manual objective label must have 1 to 256 characters");
+    }
+
     public static final MapCodec<ManualObjective> CODEC = RecordCodecBuilder.mapCodec(inst -> inst.group(
-            Codec.string(1, 256).fieldOf("label").forGetter(ManualObjective::label)
+            LABEL.fieldOf("label").forGetter(ManualObjective::label)
     ).apply(inst, ManualObjective::new));
 
     @Override

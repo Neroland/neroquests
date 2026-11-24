@@ -682,7 +682,7 @@ public final class QuestDefinitions {
      * @return the decoded value, or empty on any error
      */
     public static <T> Optional<T> decodeStrict(DataResult<T> result, Consumer<String> onError) {
-        Optional<DataResult.Error<T>> error = result.error();
+        var error = result.error();
         if (error.isPresent()) {
             onError.accept(error.get().message());
             return Optional.empty();
@@ -728,8 +728,10 @@ public final class QuestDefinitions {
         String packId = "";
         try {
             packId = resource.sourcePackId();
+            //? if >=1.21 {
             PackSource source = resource.source().location().source();
             worldOrServer = source == PackSource.WORLD || source == PackSource.SERVER;
+            //?}
         } catch (RuntimeException e) {
             // A pack without location metadata is treated by its id alone.
         }

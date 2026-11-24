@@ -12,7 +12,9 @@ plugins {
 
 // MC version comes from the Stonecutter node (e.g. :neoforge:26.1.2), not a global property.
 def mc = stonecutter.current.version
-def economyApiMc = mc.startsWith('1.20.') ? '1.21.1' : mc
+def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
+def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
+def economyApiVersion = legacyEconomyApi ? rootProject.neroeconomy_version_pre_components : rootProject.neroeconomy_version
 def neoVersion = project.findProperty("neo_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
 def emiFile = project.findProperty("emi_file_neoforge_${mc}")
@@ -83,7 +85,7 @@ dependencies {
 
     // NeroEconomy — OPTIONAL. Compile-time API only (budgeted quest payouts, economy objective events); never
     // bundled, never required. Only common's compat/neroeconomy bridge references it, after isModLoaded.
-    compileOnly "za.co.neroland.neroeconomy:neroeconomy-neoforge-${economyApiMc}:${rootProject.neroeconomy_version}"
+    compileOnly "za.co.neroland.neroeconomy:neroeconomy-neoforge-${economyApiMc}:${economyApiVersion}"
 
     // Sentry SDK embedded via NeoForge JarJar so players need no extra download (JarJar dedupes if
     // another mod also ships Sentry). Adds it to the compile classpath AND the mod jar.
@@ -126,10 +128,18 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         // Floor the required Core version at what we compile against so NeoForge refuses to
         // load NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
+        neroeconomy_version_range : "[${legacyEconomyApi ? economyApiVersion : '0.3.0-beta.1'},)",
     ]
     inputs.properties(props)
     expand(props)
     from "${branchDir}/src/main/templates"
+    if (stonecutter.eval(mc, '<1.20.5')) {
+        filesMatching('META-INF/neoforge.mods.toml') {
+            name = 'mods.toml'
+            filter { line -> line.replace('type = "required"', 'mandatory = true')
+                                 .replace('type = "optional"', 'mandatory = false') }
+        }
+    }
     into layout.buildDirectory.dir('generated/sources/modMetadata')
 }
 sourceSets.main.resources.srcDir generateModMetadata

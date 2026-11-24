@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-26
+
+### Added
+
+- Minecraft 1.20 through 1.20.6 on Fabric, 1.20 through 1.20.4 and 1.20.6 on Forge, and
+  1.20.4 and 1.20.6 on NeoForge.
+- The optional NeroEconomy integration uses NeroEconomy 0.8.0 or newer on Minecraft 1.20 through 1.20.4.
+
 ## [0.6.0] - 2026-11-26
 
 ### Added
 
-- Minecraft 1.20.5 on Fabric and 1.20.6 on Fabric, Forge and NeoForge.
+- Minecraft 1.20 through 1.20.6 on Fabric, 1.20 through 1.20.4 and 1.20.6 on Forge, and
+  1.20.4 and 1.20.6 on NeoForge.
+- The optional NeroEconomy integration uses NeroEconomy 0.8.0 or newer on Minecraft 1.20 through 1.20.4.
 
 ### Changed
 

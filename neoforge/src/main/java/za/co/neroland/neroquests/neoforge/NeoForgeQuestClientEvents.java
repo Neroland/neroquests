@@ -2,7 +2,11 @@ package za.co.neroland.neroquests.neoforge;
 
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+//? if >=1.20.5 {
 import net.neoforged.neoforge.client.event.ClientTickEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.TickEvent;
+*///?}
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
@@ -38,6 +42,14 @@ public final class NeoForgeQuestClientEvents {
         // static initialiser, and registering the same id twice throws.
         modEventBus.addListener((RegisterKeyMappingsEvent event) ->
                 event.register(QuestBookKeys.OPEN_QUEST_BOOK));
+        //? if >=1.20.5 {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> QuestBookKeys.tick());
+//?} else {
+/*        NeoForge.EVENT_BUS.addListener((TickEvent.ClientTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) {
+                QuestBookKeys.tick();
+            }
+        });
+*///?}
     }
 }

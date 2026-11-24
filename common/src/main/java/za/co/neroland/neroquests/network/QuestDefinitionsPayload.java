@@ -89,8 +89,13 @@ import za.co.neroland.neroquests.quest.QuestSource;
 public record QuestDefinitionsPayload(int syncId, int page, int pages, String editor, List<Entry> entries)
         implements CustomPacketPayload {
 
+    //? if >=1.20.5 {
     public static final Type<QuestDefinitionsPayload> TYPE =
             new Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_definitions"));
+    //?} else {
+    /*public static final Type<QuestDefinitionsPayload> TYPE =
+            new Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_definitions"), QuestDefinitionsPayload.class);
+    *///?}
 
     public static final StreamCodec<RegistryFriendlyByteBuf, QuestDefinitionsPayload> STREAM_CODEC =
             StreamCodec.of(QuestDefinitionsPayload::write, QuestDefinitionsPayload::read);

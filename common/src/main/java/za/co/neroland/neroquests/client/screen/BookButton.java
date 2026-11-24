@@ -33,7 +33,7 @@ final class BookButton extends Button {
     //?} else if >=1.21.11 {
     /*protected void renderContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
     *///?} else {
-    /*protected void renderWidget(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
+    /*public void renderWidget(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
     *///?}
         int x = getX();
         int y = getY();

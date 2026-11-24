@@ -96,11 +96,27 @@ public final class ForgeQuestEvents {
         // The /neroquests admin tree; the tree itself is loader-agnostic.
         RegisterCommandsEvent.BUS.addListener(event -> QuestCommands.register(event.getDispatcher()));
     }
-    *///?} else {
+    *///?} else if >=1.20.5 {
     /*public static void register() {
         // Forge before 1.21.6 (EventBus 6): one shared bus, listeners typed by their lambda parameter.
         MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent.Post event) ->
                 QuestTriggers.serverTick(event.getServer()));
+        *///?}
+        //? if <1.21.6 && >=1.20.5 {
+        /*registerLegacyBus();
+    }
+        *///?} else if <1.20.5 {
+        /*public static void register() {
+        MinecraftForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) {
+                QuestTriggers.serverTick(event.getServer());
+            }
+        });
+        registerLegacyBus();
+    }
+        *///?}
+        //? if <1.21.6 {
+        /*private static void registerLegacyBus() {
         MinecraftForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> QuestTriggers.serverStopped());
         MinecraftForge.EVENT_BUS.addListener((LivingDeathEvent event) ->
                 QuestTriggers.entityKilled(event.getEntity(), event.getSource()));

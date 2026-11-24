@@ -2,12 +2,21 @@ package za.co.neroland.neroquests.quest.reward;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+//? if >=1.20.5 {
+import com.mojang.serialization.Dynamic;
+import com.mojang.serialization.DynamicOps;
 import net.minecraft.core.component.DataComponentPatch;
+import net.minecraft.util.datafix.DataFixers;
+import net.minecraft.util.datafix.fixes.References;
+import net.minecraft.nbt.StringTag;
+//?}
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -59,18 +68,19 @@ public final class OwedDelivery {
     // --- queueing --------------------------------------------------------------
 
     /**
-     * Keep {@code count} of {@code item} (with {@code patch}) for the player and tell them, if they
+     * Keep {@code count} of {@code item} (with the metadata of {@code template}) for the player and tell them, if they
      * are here to be told.
      */
-    public static void keepItem(MinecraftServer server, UUID playerId, ServerPlayer online, Item item, int count,
-                                DataComponentPatch patch, Identifier source) {
+    public static void keepItem(MinecraftServer server, UUID playerId, ServerPlayer online, ItemStack template, int count,
+                                Identifier source) {
         if (count <= 0) {
             return;
         }
         QuestProgressState state = QuestProgressState.get(server);
+        Item item = template.getItem();
         Identifier id = BuiltInRegistries.ITEM.getKey(item);
         OwedReward entry = OwedReward.item(state.nextRequestKey(ITEM_KEY_PREFIX, source), id, count,
-                encodePatch(server, patch), EconomyCompat.REASON_QUEST, source, System.currentTimeMillis());
+                encodePatch(server, template), EconomyCompat.REASON_QUEST, source, System.currentTimeMillis());
         CurrencyPayouts.owe(state, playerId, online, entry);
         if (online != null && !online.hasDisconnected()) {
             online.sendSystemMessage(online.isAlive()
@@ -122,13 +132,14 @@ public final class OwedDelivery {
      *
      * @return how many did not fit (0 when everything went in)
      */
-    public static int insert(ServerPlayer player, Item item, int count, DataComponentPatch patch) {
+    public static int insert(ServerPlayer player, Item item, int count) {
+        return insert(player, new ItemStack(item), count);
+    }
+
+    public static int insert(ServerPlayer player, ItemStack template, int count) {
         int remaining = Math.max(0, count);
         while (remaining > 0) {
-            ItemStack stack = new ItemStack(item);
-            if (patch != null && !patch.isEmpty()) {
-                stack.applyComponents(patch);
-            }
+            ItemStack stack = template.copy();
             int size = Math.min(remaining, Math.max(1, stack.getMaxStackSize()));
             stack.setCount(size);
             player.getInventory().add(stack); // shrinks the stack by what went in
@@ -179,7 +190,13 @@ public final class OwedDelivery {
                     return 0;
                 }
                 Item item = BuiltInRegistries.ITEM.getValue(id);
-                return count - insert(player, item, count, decodePatch(server, components));
+                ItemStack template = new ItemStack(item);
+                if (!applyPatch(server, template, components)) {
+                    RewardLog.warnOnce("owed-item-data:" + id,
+                            "[NeroQuests] A kept item reward for '{}' has incompatible item data; it stays kept.", id);
+                    return 0;
+                }
+                return count - insert(player, template, count);
             }
 
             @Override
@@ -283,23 +300,69 @@ public final class OwedDelivery {
     // --- component patch (registry-aware) ----------------------------------------
 
     /** The patch as NBT, encoded with the server's registries; empty for a plain stack. */
-    static CompoundTag encodePatch(MinecraftServer server, DataComponentPatch patch) {
-        if (patch == null || patch.isEmpty()) {
+    static CompoundTag encodePatch(MinecraftServer server, ItemStack template) {
+        //? if >=1.20.5 {
+        DataComponentPatch patch = template.getComponentsPatch();
+        if (patch.isEmpty()) {
             return new CompoundTag();
         }
         Tag tag = DataComponentPatch.CODEC
                 .encodeStart(server.registryAccess().createSerializationContext(NbtOps.INSTANCE), patch)
                 .result().orElse(null);
         return tag instanceof CompoundTag compound ? compound : new CompoundTag();
+        //?} else {
+        /*CompoundTag result = new CompoundTag();
+        if (template.hasTag()) {
+            result.put("legacy_item_tag", template.getTag().copy());
+            NbtUtils.addCurrentDataVersion(result);
+        }
+        return result;
+        *///?}
     }
 
-    /** The stored patch, decoded with the server's registries; empty if absent or undecodable. */
-    static DataComponentPatch decodePatch(MinecraftServer server, CompoundTag tag) {
+    static boolean applyPatch(MinecraftServer server, ItemStack template, CompoundTag tag) {
         if (tag == null || tag.isEmpty()) {
-            return DataComponentPatch.EMPTY;
+            return true;
         }
-        return DataComponentPatch.CODEC
-                .parse(server.registryAccess().createSerializationContext(NbtOps.INSTANCE), tag)
-                .result().orElse(DataComponentPatch.EMPTY);
+        //? if >=1.20.5 {
+        var ops = server.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+        var patch = tag.get("legacy_item_tag") instanceof CompoundTag itemTag
+                ? upgradeLegacyItem(BuiltInRegistries.ITEM.getKey(template.getItem()), tag, itemTag, ops)
+                : DataComponentPatch.CODEC.parse(ops, tag).result();
+        patch.ifPresent(template::applyComponents);
+        return patch.isPresent();
+        //?} else {
+        /*if (!tag.contains("legacy_item_tag", Tag.TAG_COMPOUND)) {
+            return false;
+        }
+        template.setTag(tag.getCompound("legacy_item_tag").copy());
+        return true;
+        *///?}
     }
+
+    //? if >=1.20.5 {
+    static Optional<DataComponentPatch> upgradeLegacyItem(Identifier itemId, CompoundTag stored,
+            CompoundTag itemTag, DynamicOps<Tag> ops) {
+        int sourceVersion = NbtUtils.getDataVersion(stored, -1);
+        if (sourceVersion < 0) {
+            return Optional.empty();
+        }
+        CompoundTag legacy = new CompoundTag();
+        legacy.putString("id", itemId.toString());
+        legacy.putByte("Count", (byte) 1);
+        legacy.put("tag", itemTag.copy());
+        var current = NbtUtils.addCurrentDataVersion(new CompoundTag());
+        int targetVersion = NbtUtils.getDataVersion(current, -1);
+        var upgraded = DataFixers.getDataFixer().update(
+                References.ITEM_STACK,
+                new Dynamic<>(NbtOps.INSTANCE, legacy), sourceVersion, targetVersion);
+        if (!(upgraded.getValue() instanceof CompoundTag item)
+                || !StringTag.valueOf(itemId.toString()).equals(item.get("id"))) {
+            return Optional.empty();
+        }
+        Tag components = item.get("components");
+        return components == null ? Optional.of(DataComponentPatch.EMPTY)
+                : DataComponentPatch.CODEC.parse(ops, components).result();
+    }
+    //?}
 }

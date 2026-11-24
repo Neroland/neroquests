@@ -59,9 +59,15 @@ public final class EditorPayloads {
     private EditorPayloads() {
     }
 
+    //? if >=1.20.5 {
     private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String path) {
         return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "editor/" + path));
     }
+    //?} else {
+    /*private static <T extends CustomPacketPayload> CustomPacketPayload.Type<T> payloadType(String path, Class<T> type) {
+        return new CustomPacketPayload.Type<>(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "editor/" + path), type);
+    }
+    *///?}
 
     // --- wire helpers (bounded) ------------------------------------------------------------------
 

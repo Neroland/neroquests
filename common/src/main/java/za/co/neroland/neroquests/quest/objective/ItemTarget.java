@@ -36,9 +36,13 @@ public record ItemTarget(Optional<Identifier> item, Optional<Identifier> tag) {
     public static final MapCodec<ItemTarget> MAP_CODEC = RecordCodecBuilder.<ItemTarget>mapCodec(inst -> inst.group(
             Identifier.CODEC.optionalFieldOf("item").forGetter(ItemTarget::item),
             Identifier.CODEC.optionalFieldOf("tag").forGetter(ItemTarget::tag)
-    ).apply(inst, ItemTarget::new)).validate(target -> target.item().isPresent() == target.tag().isPresent()
-            ? DataResult.error(() -> "an item objective needs exactly one of 'item' or 'tag'")
-            : DataResult.success(target));
+    ).apply(inst, ItemTarget::new)).flatXmap(ItemTarget::validateTarget, ItemTarget::validateTarget);
+
+    private static DataResult<ItemTarget> validateTarget(ItemTarget target) {
+        return target.item().isPresent() == target.tag().isPresent()
+                ? DataResult.error(() -> "an item objective needs exactly one of 'item' or 'tag'")
+                : DataResult.success(target);
+    }
 
     /** Whether {@code stack} is one of the items this target selects. Empty stacks never match. */
     public boolean matches(ItemStack stack) {

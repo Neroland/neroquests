@@ -55,9 +55,13 @@ public record EconomyObjective(Event event, Optional<Identifier> item, Optional<
             Identifier.CODEC.optionalFieldOf("tag").forGetter(EconomyObjective::tag),
             Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("count", 1)
                     .forGetter(EconomyObjective::count)
-    ).apply(inst, EconomyObjective::new)).validate(objective -> objective.item().isPresent() && objective.tag().isPresent()
-            ? DataResult.error(() -> "an economy objective takes at most one of 'item' or 'tag'")
-            : DataResult.success(objective));
+    ).apply(inst, EconomyObjective::new)).flatXmap(EconomyObjective::validateTarget, EconomyObjective::validateTarget);
+
+    private static DataResult<EconomyObjective> validateTarget(EconomyObjective objective) {
+        return objective.item().isPresent() && objective.tag().isPresent()
+                ? DataResult.error(() -> "an economy objective takes at most one of 'item' or 'tag'")
+                : DataResult.success(objective);
+    }
 
     /** Which economy happening counts. */
     public enum Event {

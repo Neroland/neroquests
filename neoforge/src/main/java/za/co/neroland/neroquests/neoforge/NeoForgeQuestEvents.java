@@ -6,7 +6,11 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+//? if >=1.20.5 {
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+//?} else {
+/*import net.neoforged.neoforge.event.TickEvent;
+*///?}
 
 import za.co.neroland.neroquests.command.QuestCommands;
 import za.co.neroland.neroquests.quest.engine.QuestTriggers;
@@ -29,8 +33,16 @@ public final class NeoForgeQuestEvents {
     /** Called once from the NeoForge entry point. */
     public static void register() {
         // Periodic re-measure of collect / dimension / gate objectives (self-throttled to 1 Hz).
+        //? if >=1.20.5 {
         NeoForge.EVENT_BUS.addListener((ServerTickEvent.Post event) ->
                 QuestTriggers.serverTick(event.getServer()));
+//?} else {
+/*        NeoForge.EVENT_BUS.addListener((TickEvent.ServerTickEvent event) -> {
+            if (event.phase == TickEvent.Phase.END) {
+                QuestTriggers.serverTick(event.getServer());
+            }
+        });
+*///?}
 
         // Drop every static reference to the stopped server (AUD-31).
         NeoForge.EVENT_BUS.addListener((ServerStoppedEvent event) -> QuestTriggers.serverStopped());

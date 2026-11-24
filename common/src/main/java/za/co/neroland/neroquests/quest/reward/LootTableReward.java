@@ -56,8 +56,15 @@ public record LootTableReward(Identifier table) implements RewardSpec {
     /** Whether {@code table} is a loot table the server has loaded. */
     public static boolean exists(MinecraftServer server, Identifier table) {
         // An unknown key resolves to LootTable.EMPTY rather than null.
-        return table != null && server.reloadableRegistries()
-                .getLootTable(ResourceKey.create(Registries.LOOT_TABLE, table)) != LootTable.EMPTY;
+        return table != null && getLootTable(server, table) != LootTable.EMPTY;
+    }
+
+    private static LootTable getLootTable(MinecraftServer server, Identifier table) {
+        //? if >=1.20.5 {
+        return server.reloadableRegistries().getLootTable(ResourceKey.create(Registries.LOOT_TABLE, table));
+        //?} else {
+        /*return server.getLootData().getLootTable(table);
+        *///?}
     }
 
     /** Pure form of {@link #exists(MinecraftServer, Identifier)}: is {@code table} among {@code loaded}? */
@@ -86,7 +93,7 @@ public record LootTableReward(Identifier table) implements RewardSpec {
                             + "for it.", TYPE_ID, table);
             return;
         }
-        LootTable loot = server.reloadableRegistries().getLootTable(ResourceKey.create(Registries.LOOT_TABLE, table));
+        LootTable loot = getLootTable(server, table);
         ServerPlayer player = context.player();
         Vec3 origin = player != null ? player.position() : Vec3.ZERO;
         LootParams params = new LootParams.Builder(server.overworld())
@@ -98,17 +105,17 @@ public record LootTableReward(Identifier table) implements RewardSpec {
                 continue;
             }
             if (!receive || player == null) {
-                OwedDelivery.keepItem(server, context.playerId(), player, stack.getItem(), stack.getCount(),
-                        stack.getComponentsPatch(), context.quest().id());
+                OwedDelivery.keepItem(server, context.playerId(), player, stack, stack.getCount(),
+                        context.quest().id());
                 continue;
             }
-            int remaining = OwedDelivery.insert(player, stack.getItem(), stack.getCount(), stack.getComponentsPatch());
+            int remaining = OwedDelivery.insert(player, stack, stack.getCount());
             if (remaining <= 0) {
                 continue;
             }
             if (!NeroQuestsConfig.OWED_ITEMS_DROP_WHEN_FULL.get().booleanValue()) {
-                OwedDelivery.keepItem(server, context.playerId(), player, stack.getItem(), remaining,
-                        stack.getComponentsPatch(), context.quest().id());
+                OwedDelivery.keepItem(server, context.playerId(), player, stack, remaining,
+                        context.quest().id());
                 continue;
             }
             ItemStack rest = stack.copyWithCount(remaining);

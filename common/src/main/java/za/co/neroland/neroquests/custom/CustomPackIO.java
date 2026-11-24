@@ -270,7 +270,7 @@ public final class CustomPackIO {
         try (Stream<Path> namespaces = Files.list(root.resolve("data"))) {
             for (Path namespaceDir : namespaces.filter(Files::isDirectory).toList()) {
                 String namespace = namespaceDir.getFileName().toString();
-                if (!Identifier.isValidNamespace(namespace)) {
+                if (!namespace.matches("[a-z0-9_.-]+")) {
                     continue;
                 }
                 if (QuestSource.CUSTOM_NAMESPACE.equals(namespace)) {

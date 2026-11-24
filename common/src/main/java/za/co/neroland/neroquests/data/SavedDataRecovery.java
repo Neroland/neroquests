@@ -98,10 +98,18 @@ public final class SavedDataRecovery {
             }
             boolean bad;
             try {
+                //? if >=1.20.3 {
                 CompoundTag root = NbtIo.readCompressed(primary, NbtAccounter.unlimitedHeap());
+                //?} else {
+                /*CompoundTag root = NbtIo.readCompressed(primary.toFile());
+                *///?}
                 Tag data = root.get("data");
                 bad = data != null && SavedDataCompat.codec(type, level)
+                        //? if >=1.20.5 {
                         .parse(level.registryAccess().createSerializationContext(NbtOps.INSTANCE), data)
+                        //?} else {
+                        /*.parse(NbtOps.INSTANCE, data)
+                        *///?}
                         .error().isPresent();
             } catch (Exception unreadable) {
                 bad = true;

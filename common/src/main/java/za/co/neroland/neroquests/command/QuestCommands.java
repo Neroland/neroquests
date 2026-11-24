@@ -137,7 +137,11 @@ public final class QuestCommands {
             return true;
         }
         return source.getEntity() == null
+                //? if >=1.20.3 {
                 && !source.isSilent()
+                //?} else {
+                /*&& source.withSuppressedOutput() != source
+                *///?}
                 && hasLevel(source, Commands.LEVEL_OWNERS)
                 && ("Server".equals(source.getTextName()) || "Rcon".equals(source.getTextName()));
     }

@@ -30,9 +30,7 @@ public record DailyContract(Identifier id, String title, ItemTarget target, int 
                 Codec.STRING.optionalFieldOf("title", "").forGetter(Data::title),
                 ItemTarget.MAP_CODEC.forGetter(Data::target),
                 Codec.intRange(1, 4096).optionalFieldOf("count", 1).forGetter(Data::count),
-                Codec.LONG.validate(value -> value != null && value.longValue() >= 1L && value.longValue() <= 1000L
-                                ? DataResult.success(value)
-                                : DataResult.error(() -> "a contract's 'reward' must be 1 to 1000 credits"))
+                Codec.LONG.flatXmap(DailyContract::validateReward, DailyContract::validateReward)
                         .fieldOf("reward").forGetter(Data::boxedReward),
                 Codec.intRange(1, 1000).optionalFieldOf("weight", 1).forGetter(Data::weight)
         ).apply(inst, Data::of));
@@ -49,5 +47,10 @@ public record DailyContract(Identifier id, String title, ItemTarget target, int 
     public DailyContract(Identifier id, Data data) {
         this(id, data.title().isEmpty() ? "contract." + id.getNamespace() + "." + id.getPath().replace('/', '.')
                 : data.title(), data.target(), data.count(), data.reward(), data.weight());
+    }
+    private static DataResult<Long> validateReward(Long value) {
+        return value != null && value.longValue() >= 1L && value.longValue() <= 1000L
+                ? DataResult.success(value)
+                : DataResult.error(() -> "a contract's 'reward' must be 1 to 1000 credits");
     }
 }

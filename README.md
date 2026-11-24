@@ -2,7 +2,16 @@
 
 > Part of the Neroland sci-fi Minecraft mod ecosystem, built on **Neroland Core**.
 
-**Status:** beta — version `0.4.1-beta.1`.
+NeroQuests requires **Neroland Core 1.23.0 or newer** (below 2.0) on the same Minecraft version and loader.
+
+| Minecraft | Fabric | Forge | NeoForge |
+| --- | --- | --- | --- |
+| 1.20, 1.20.1, 1.20.2, 1.20.3 | Yes | Yes | |
+| 1.20.4 | Yes | Yes | Yes |
+| 1.20.5 | Yes | | |
+| 1.20.6 | Yes | Yes | Yes |
+
+The Minecraft 1.20 through 1.20.4 builds use Java 17. For optional economy integration on those builds, use NeroEconomy 0.8.0 or newer.
 
 A native, datapack-driven quest engine for the Neroland ecosystem:
 

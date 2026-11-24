@@ -26,11 +26,19 @@ allprojects {
 // AFTER Stonecutter's own //? processing. Only for pure renames Mojang made with no behaviour change;
 // anything else uses //? if blocks in the source. Loader src/ trees do NOT get these (use //? there).
 ext.legacyRenames = [
+    [below: '1.20.5', from: /\.getOrThrow\(\)/, to: '.result().orElseThrow()'],
     // 1.21.11 renamed ResourceLocation -> Identifier and ResourceKey.location() -> identifier().
     [below: '1.21.11', from: /\bIdentifier\b/, to: 'ResourceLocation'],
     [below: '1.21.11', from: /\.identifier\(\)/, to: '.location()'],
     [below: '1.21', from: /\b((?:net\.minecraft\.resources\.)?ResourceLocation)\s*\.(?:fromNamespaceAndPath|parse|withDefaultNamespace)\(/, to: 'new $1('],
     [below: '1.21', from: /\bResourceLocation::parse\b/, to: 'ResourceLocation::new'],
+    [below: '1.20.5', from: /import net\.minecraft\.network\.RegistryFriendlyByteBuf;/, to: 'import net.minecraft.network.FriendlyByteBuf;'],
+    [below: '1.20.5', from: /\bRegistryFriendlyByteBuf\b/, to: 'FriendlyByteBuf'],
+    [below: '1.20.5', from: /import net\.minecraft\.network\.codec\.StreamCodec;/, to: 'import za.co.neroland.nerolandcore.network.legacy.LegacyStreamCodec;'],
+    [below: '1.20.5', from: /\bStreamCodec\b/, to: 'LegacyStreamCodec'],
+    [below: '1.20.5', from: /import net\.minecraft\.network\.protocol\.common\.custom\.CustomPacketPayload;/, to: 'import za.co.neroland.nerolandcore.network.legacy.LegacyPayload;'],
+    [below: '1.20.5', from: /(?<![.\w])CustomPacketPayload\b/, to: 'LegacyPayload'],
+    [below: '1.20.5', from: /(Type<(\w+)> TYPE = payloadType\("[^"]+")\);/, to: '$1, $2.class);'],
     // 26.1 renamed GuiGraphics -> GuiGraphicsExtractor and its drawString(..) -> text(..). The text()
     // rename is keyed on the receiver names this codebase uses for the graphics object (g / graphics).
     [below: '26.1', from: /\bGuiGraphicsExtractor\b/, to: 'GuiGraphics'],
@@ -90,21 +98,35 @@ subprojects {
 
     // Minecraft 1.21.x runs on Java 21, so its cells must emit Java 21 bytecode (and may not use
     // Java 22+ language features). 26.x cells stay on Java 25. A node's project name IS its MC version.
-    def javaRelease = project.name.startsWith('1.') ? 21 : 25
+    def java17Versions = ['1.20', '1.20.1', '1.20.2', '1.20.3', '1.20.4']
+    def javaRelease = project.name in java17Versions ? 17 : project.name.startsWith('1.') ? 21 : 25
     ext.javaRelease = javaRelease
 
-    if (project.name.startsWith('1.20.')) {
+    if (project.name == '1.20' || project.name.startsWith('1.20.')) {
+        def packFormats = [
+                '1.20': [15, 15], '1.20.1': [15, 15], '1.20.2': [18, 18],
+                '1.20.3': [22, 26], '1.20.4': [22, 26], '1.20.5': [32, 41], '1.20.6': [32, 41]
+        ][project.name]
         tasks.named('processResources') {
+            inputs.property('packFormats', packFormats)
             eachFile { file ->
                 file.path = file.path.replaceFirst(/^(data\/[^\/]+\/)(advancement|loot_table|recipe)\//, '$1$2s/')
                         .replaceFirst(/^(data\/[^\/]+\/tags\/)(block|entity_type|fluid|item)\//, '$1$2s/')
             }
             includeEmptyDirs = false
+            if (javaRelease == 17) {
+                filesMatching('**/*.mixins.json') {
+                    filter { line -> line.replace('JAVA_21', 'JAVA_17') }
+                    if (project.parent.name == 'forge') {
+                        filter { line -> line.replace('"minVersion": "0.8",', '"minVersion": "0.8",\n  "refmap": "neroquests.refmap.json",') }
+                    }
+                }
+            }
             doLast {
                 def metadata = new File(destinationDir, 'pack.mcmeta')
                 def pack = new groovy.json.JsonSlurper().parse(metadata).pack
                 metadata.setText(groovy.json.JsonOutput.toJson([
-                        pack: [description: pack.description, pack_format: 32, supported_formats: [32, 41]]
+                        pack: [description: pack.description, pack_format: packFormats[0], supported_formats: packFormats]
                 ]), 'UTF-8')
             }
         }
@@ -340,7 +362,9 @@ subprojects {
             def legacyRecipes = node.tasks.register('legacyRecipes') {
                 group = 'stonecutter'
                 description = 'Rewrites short-form recipe ingredients to the pre-1.21.2 object form.'
+                def legacyItemData = sc.eval(sc.current.version, '<1.20.5')
                 inputs.dir(base)
+                inputs.property('legacyItemData', legacyItemData)
                 outputs.dir(outDir)
                 doLast {
                     node.delete(outDir)
@@ -354,10 +378,24 @@ subprojects {
                     }
                     base.eachFileRecurse(groovy.io.FileType.FILES) { f ->
                         def rel = base.toPath().relativize(f.toPath()).toString().replace('\\', '/')
-                        if (!(rel ==~ /data\/[^\/]+\/recipe\/.+\.json/)) {
+                        def recipe = rel ==~ /data\/[^\/]+\/recipe\/.+\.json/
+                        def advancement = legacyItemData && rel ==~ /data\/[^\/]+\/advancement\/.+\.json/
+                        if (!recipe && !advancement) {
                             return
                         }
                         def json = slurper.parse(f)
+                        if (recipe && legacyItemData && json.result instanceof Map && json.result.id != null) {
+                            json.result.item = json.result.remove('id')
+                        }
+                        if (advancement) {
+                            json.criteria?.values()?.each { criterion ->
+                                criterion.conditions?.items?.each { predicate ->
+                                    if (predicate.items instanceof String) {
+                                        predicate.items = [predicate.items]
+                                    }
+                                }
+                            }
+                        }
                         if (json.key instanceof Map) {
                             json.key = json.key.collectEntries { k, v -> [(k): conv(v)] }
                         }

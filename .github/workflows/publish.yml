@@ -72,6 +72,11 @@ jobs:
         run: |
           matrix="$(jq -c . <<'CELLS'
           {"include":[
+            {"loader": "fabric", "mc": "1.20", "games": "1.20", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "1.20.1", "games": "1.20.1", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "1.20.2", "games": "1.20.2", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "1.20.3", "games": "1.20.3", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "1.20.4", "games": "1.20.4", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.20.5", "games": "1.20.5", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.20.6", "games": "1.20.6", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.1", "games": "1.21.1", "label": "Fabric", "suffix": ""},
@@ -83,6 +88,7 @@ jobs:
             {"loader": "fabric", "mc": "26.1.2", "games": "26.1.2", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "26.2", "games": "26.2", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "26.3", "games": "26.3", "label": "Fabric", "suffix": ""},
+            {"loader": "neoforge", "mc": "1.20.4", "games": "1.20.4", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.20.6", "games": "1.20.6", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.1", "games": "1.21.1", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.4", "games": "1.21.4", "label": "NeoForge", "suffix": ""},
@@ -93,6 +99,11 @@ jobs:
             {"loader": "neoforge", "mc": "26.1.2", "games": "26.1.2", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "26.2", "games": "26.2", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "26.3", "games": "26.3", "label": "NeoForge", "suffix": ""},
+            {"loader": "forge", "mc": "1.20", "games": "1.20", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "1.20.1", "games": "1.20.1", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "1.20.2", "games": "1.20.2", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "1.20.3", "games": "1.20.3", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "1.20.4", "games": "1.20.4", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.20.6", "games": "1.20.6", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.1", "games": "1.21.1", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.4", "games": "1.21.4", "label": "Forge", "suffix": "-all"},
@@ -125,10 +136,11 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up JDKs 21 and 25
+      - name: Set up JDKs 17, 21 and 25
         uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5
         with:
           java-version: |
+            17
             21
             25
           distribution: "temurin"

@@ -31,9 +31,13 @@ public record EntityTarget(Optional<Identifier> entity, Optional<Identifier> tag
     public static final MapCodec<EntityTarget> MAP_CODEC = RecordCodecBuilder.<EntityTarget>mapCodec(inst -> inst.group(
             Identifier.CODEC.optionalFieldOf("entity").forGetter(EntityTarget::entity),
             Identifier.CODEC.optionalFieldOf("tag").forGetter(EntityTarget::tag)
-    ).apply(inst, EntityTarget::new)).validate(target -> target.entity().isPresent() == target.tag().isPresent()
-            ? DataResult.error(() -> "an entity objective needs exactly one of 'entity' or 'tag'")
-            : DataResult.success(target));
+    ).apply(inst, EntityTarget::new)).flatXmap(EntityTarget::validateTarget, EntityTarget::validateTarget);
+
+    private static DataResult<EntityTarget> validateTarget(EntityTarget target) {
+        return target.entity().isPresent() == target.tag().isPresent()
+                ? DataResult.error(() -> "an entity objective needs exactly one of 'entity' or 'tag'")
+                : DataResult.success(target);
+    }
 
     /** Whether {@code victim} is one of the entity types this target selects. */
     public boolean matches(Entity victim) {

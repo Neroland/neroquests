@@ -17,7 +17,6 @@ import java.util.function.Predicate;
 import com.google.gson.JsonObject;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -902,7 +901,11 @@ public final class CustomQuests {
     }
 
     private static boolean plain(ItemStack stack, Item item) {
+        //? if >=1.20.5 {
         return !stack.isEmpty() && stack.is(item) && stack.getComponentsPatch().isEmpty();
+        //?} else {
+        /*return !stack.isEmpty() && stack.is(item) && !stack.hasTag();
+        *///?}
     }
 
     private static Optional<Item> firstMissing(Inventory inventory, Map<Item, Integer> needed) {
@@ -963,7 +966,7 @@ public final class CustomQuests {
             ServerPlayer online = server.getPlayerList().getPlayer(recipient.get());
             int remaining = total;
             if (OwedDelivery.canReceive(online)) {
-                remaining = OwedDelivery.insert(online, item, total, DataComponentPatch.EMPTY);
+                remaining = OwedDelivery.insert(online, item, total);
             }
             if (remaining > 0) {
                 OwedDelivery.keepRefund(server, recipient.get(), online, item, remaining, quest.id());

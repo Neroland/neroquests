@@ -575,10 +575,10 @@ public class QuestBookScreen extends Screen {
         long now = System.nanoTime();
         double seconds = this.lastFrameNanos == 0L ? 0.0D : (now - this.lastFrameNanos) / 1.0E9D;
         this.lastFrameNanos = now;
-        //? if <1.21.6 {
-        /*// Before 1.21.6 Screen.render(..) paints the vanilla background itself, which would cover the book; paint
-        // it first here instead (renderBackground below is a no-op for that inherited call).
-        super.renderBackground(graphics, mouseX, mouseY, partialTick);
+        //? if <1.20.2 {
+        /*super.renderBackground(graphics);
+        *///?} else if <1.21.6 {
+        /*super.renderBackground(graphics, mouseX, mouseY, partialTick);
         *///?}
         ensureGraph();
         updateMotion(seconds);
@@ -617,7 +617,7 @@ public class QuestBookScreen extends Screen {
         }
     }
 
-    //? if <1.21.6 {
+    //? if >=1.20.2 && <1.21.6 {
     /*@Override
     public void renderBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
         // Painted at the start of render(..) instead, under the book.
@@ -1092,7 +1092,7 @@ public class QuestBookScreen extends Screen {
             if (this.editMode && !drawerOpen()) {
                 lines.add(Component.translatable(hoveredHandle ? "gui.neroquests.editor.node.handle.tooltip"
                         : editable ? "gui.neroquests.editor.node.tooltip"
-                        : "gui.neroquests.editor.node.locked.tooltip").withColor(BookPaint.MUTED));
+                        : "gui.neroquests.editor.node.locked.tooltip").withStyle(style -> style.withColor(BookPaint.MUTED)));
             }
             BookGfx.componentTooltip(this, graphics, this.font, lines, mouseX, mouseY);
         } else if (this.hoverLine >= 0) {
@@ -1678,11 +1678,11 @@ public class QuestBookScreen extends Screen {
     /** The node tooltip: title, state, a short objective summary and a hint. */
     List<Component> tooltipFor(Quest quest, NodeState state) {
         List<Component> lines = new ArrayList<>();
-        lines.add(QuestText.title(quest).copy().withColor(TITLE));
-        lines.add(Component.translatable(stateKey(state)).withColor(colourOf(state)));
+        lines.add(QuestText.title(quest).copy().withStyle(style -> style.withColor(TITLE)));
+        lines.add(Component.translatable(stateKey(state)).withStyle(style -> style.withColor(colourOf(state))));
         if (quest.modAbsent()) {
             lines.add(Component.translatable("gui.neroquests.quest_book.mod_absent", quest.id().getNamespace())
-                    .withColor(WARN));
+                    .withStyle(style -> style.withColor(WARN)));
         }
         QuestProgress progress = ClientQuestProgress.progress(quest);
         List<ObjectiveSpec> objectives = quest.objectives();
@@ -1699,14 +1699,14 @@ public class QuestBookScreen extends Screen {
             lines.add(Component.translatable("gui.neroquests.quest_book.line",
                     Component.translatable("gui.neroquests.quest_book.objective_line",
                             QuestBookText.objective(spec, quest.source()), Component.literal(current + " / " + target)))
-                    .withColor(current >= target ? COLOUR_COMPLETED : SUBTLE));
+                    .withStyle(style -> style.withColor(current >= target ? COLOUR_COMPLETED : SUBTLE)));
             shown++;
         }
         if (hidden > 0) {
-            lines.add(Component.translatable(G + "more_objectives", Integer.valueOf(hidden)).withColor(BookPaint.MUTED));
+            lines.add(Component.translatable(G + "more_objectives", Integer.valueOf(hidden)).withStyle(style -> style.withColor(BookPaint.MUTED)));
         }
         if (!this.editMode && !drawerOpen()) {
-            lines.add(Component.translatable(G + "click_details").withColor(BookPaint.MUTED));
+            lines.add(Component.translatable(G + "click_details").withStyle(style -> style.withColor(BookPaint.MUTED)));
         }
         return lines;
     }
@@ -2100,16 +2100,21 @@ public class QuestBookScreen extends Screen {
     }
 
     @Override
+    //? if >=1.20.2 {
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+    //?} else {
+    /*public boolean mouseScrolled(double mouseX, double mouseY, double scrollY) {
+        double scrollX = 0;
+    *///?}
         int step = (int) Math.signum(scrollY);
         if (step == 0) {
-            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            return scrollChildren(mouseX, mouseY, scrollX, scrollY);
         }
         if (this.editor.overlayOpen() || questPanelOpen()) {
             if (this.editor.scrolled(mouseX, mouseY, step)) {
                 return true;
             }
-            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+            return scrollChildren(mouseX, mouseY, scrollX, scrollY);
         }
         if (this.layout.sidebar().contains(mouseX, mouseY)) {
             int max = Math.max(0, this.chapters.size() - this.layout.tabRows());
@@ -2126,7 +2131,15 @@ public class QuestBookScreen extends Screen {
             this.interacted = true;
             return true;
         }
+        return scrollChildren(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private boolean scrollChildren(double mouseX, double mouseY, double scrollX, double scrollY) {
+        //? if >=1.20.2 {
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        //?} else {
+        /*return super.mouseScrolled(mouseX, mouseY, scrollY);
+        *///?}
     }
 
     /** Whether a text field has the keyboard (then typed keys belong to it, not to shortcuts). */
