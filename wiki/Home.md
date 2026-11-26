@@ -3,9 +3,11 @@
 Player- and contributor-facing documentation for **NeroQuests**, part of the Neroland
 sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
-NeroQuests requires **Neroland Core 1.23.0 or newer** (below 2.0). The 1.20 series is supported on
+NeroQuests requires **Neroland Core 1.24.0 or newer** (below 2.0). The 1.20 series is supported on
 Fabric from 1.20 through 1.20.6, Forge from 1.20 through 1.20.4 and on 1.20.6, and NeoForge on
-1.20.4 and 1.20.6. For optional economy integration on 1.20 through 1.20.4, use NeroEconomy 0.8.0 or newer.
+1.20.4 through 1.20.6. For optional economy integration on 1.20 through 1.20.4, use NeroEconomy 0.8.0 or newer.
+
+Minecraft 1.20.5 on NeoForge requires loader 20.5.21-beta.
 
 ## Contents
 

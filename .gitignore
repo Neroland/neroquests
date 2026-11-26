@@ -59,3 +59,4 @@ __pycache__/
 node_modules/
 /fabric/versions/26.2/logs
 /neoforge/versions/26.3/logs
+*.log

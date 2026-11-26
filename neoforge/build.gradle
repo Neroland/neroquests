@@ -14,11 +14,11 @@ plugins {
 def mc = stonecutter.current.version
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
 def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
-def economyApiVersion = legacyEconomyApi ? rootProject.neroeconomy_version_pre_components : rootProject.neroeconomy_version
+def economyApiVersion = rootProject.neroeconomy_version
 def neoVersion = project.findProperty("neo_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
 def emiFile = project.findProperty("emi_file_neoforge_${mc}")
-def nerolandcoreVersion = project.findProperty('nerolandcore_version')
+def nerolandcoreVersion = rootProject.property('nerolandcore_version')
 
 // Upper bound for this cell's Minecraft range: the next minor release (26.1.2 -> 26.2, 26.2 -> 26.3).
 // A cell is compiled against exactly one Minecraft version, so its manifest must not claim later ones.
@@ -128,7 +128,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         // Floor the required Core version at what we compile against so NeoForge refuses to
         // load NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
-        neroeconomy_version_range : "[${legacyEconomyApi ? economyApiVersion : '0.3.0-beta.1'},)",
+        neroeconomy_version_range : "[${economyApiVersion},)",
     ]
     inputs.properties(props)
     expand(props)
@@ -143,6 +143,31 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     into layout.buildDirectory.dir('generated/sources/modMetadata')
 }
 sourceSets.main.resources.srcDir generateModMetadata
+
+// NeoForge 20.5's POM predates the ModDevGradle variants. The original userdev jar supplies the
+// game patches and the original POM supplies dependencies for the compile and test classpaths.
+if (mc == '1.20.5') {
+    dependencies.components.withModule('net.neoforged:neoforge') { details ->
+        if (details.id.version == neoVersion) {
+            details.withVariant('sources') {
+                withDependencies { clear() }
+            }
+            details.addVariant('legacyModDevBundle') {
+                withCapabilities { addCapability('net.neoforged', 'neoforge-moddev-bundle', neoVersion) }
+                withFiles { addFile("neoforge-${neoVersion}-userdev.jar") }
+            }
+            ['compile', 'runtime'].each { pomVariant ->
+                details.addVariant("legacyModDev-${pomVariant}", pomVariant) {
+                    withCapabilities {
+                        removeCapability('net.neoforged', 'neoforge')
+                        addCapability('net.neoforged', 'neoforge-dependencies', neoVersion)
+                    }
+                    withFiles { removeAllFiles() }
+                }
+            }
+        }
+    }
+}
 
 neoForge {
     version = neoVersion

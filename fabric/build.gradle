@@ -15,7 +15,7 @@ plugins {
 def mc = stonecutter.current.version
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
 def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
-def economyApiVersion = legacyEconomyApi ? rootProject.neroeconomy_version_pre_components : rootProject.neroeconomy_version
+def economyApiVersion = rootProject.neroeconomy_version
 // Minecraft before 26.1 ships obfuscated, so those cells need mappings and a remapped jar.
 def obfuscated = mc.startsWith('1.')
 apply plugin: obfuscated ? 'net.fabricmc.fabric-loom-remap' : 'net.fabricmc.fabric-loom'
@@ -182,7 +182,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         mod_license          : rootProject.mod_license,
         fabric_loader_version: rootProject.fabric_loader_version,
         // Pinned to this cell: >=26.2 <26.3 on the 26.2 cell, >=1.21.7 <1.21.9 on the 1.21.8 cell, and so on.
-        neroeconomy_minimum: legacyEconomyApi ? economyApiVersion : '0.3.0-beta.1',
+        neroeconomy_minimum: economyApiVersion,
         java_version: project.javaRelease,
         minecraft_version_range: ">=${mcFloor} <${mcCeiling}",
         // Floor the required Core version at what we compile against so the loader refuses to

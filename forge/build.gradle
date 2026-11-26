@@ -18,7 +18,7 @@ if (legacyForge) {
 
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
 def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
-def economyApiVersion = legacyEconomyApi ? rootProject.neroeconomy_version_pre_components : rootProject.neroeconomy_version
+def economyApiVersion = rootProject.neroeconomy_version
 def forgeVersion = project.findProperty("forge_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
 def emiFile = project.findProperty("emi_file_neoforge_${mc}")
@@ -187,7 +187,7 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
         // Floor the required Core version at what we compile against so Forge refuses to
         // load NeroQuests against a Core too old to have the APIs it references.
         nerolandcore_version_range: "[${nerolandcoreVersion},2.0)",
-        neroeconomy_version_range : "[${legacyEconomyApi ? economyApiVersion : '0.3.0-beta.1'},)",
+        neroeconomy_version_range : "[${economyApiVersion},)",
     ]
     inputs.properties(props)
     expand(props)

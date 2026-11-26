@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="org.eclipse.jdt.launching.localJavaApplication">
+  <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="neroquests-forge-1.20.4"/>
+  <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="net.minecraftforge.launcher.Main"/>
+  <stringAttribute key="org.eclipse.jdt.launching.VM_ARGUMENTS" value="-Djava.net.preferIPv6Addresses=system -Dforge.enableGameTest=true -Deventbus.api.strictRuntimeChecks=true -Dforge.enabledGameTestNamespaces=neroquests -Dmixin.env.remapRefMap=true -Dmixin.env.refMapRemappingFile=C:\Users\dario\Documents\projects\github\neroquests\forge\versions\1.20.4\build\mappings\formatDevMixinMappings.srg"/>
+  <stringAttribute key="org.eclipse.jdt.launching.PROGRAM_ARGUMENTS" value="--main net.minecraftforge.bootstrap.ForgeBootstrap --cache C:\Users\dario\.gradle\caches\minecraftforge\forgegradle\slime-launcher\cache\net\minecraftforge\forge\1.20.4-49.2.13 --metadata C:\Users\dario\Documents\projects\github\neroquests\forge\versions\1.20.4\build\minecraftforge\forgegradle\slimeLauncherMetadataForForge\metadata --to-srg C:\Users\dario\.gradle\caches\minecraftforge\forgegradle\mavenizer\caches\mcp\de\oceanlabs\mcp\mcp_config\1.20.4-20231207.112700\data\mapings\official\1.20.4\official-1.20.4-obf.tsrg.gz --to-obf C:\Users\dario\.gradle\caches\minecraftforge\forgegradle\mavenizer\caches\mcp\de\oceanlabs\mcp\mcp_config\1.20.4-20231207.112700\data\mapings\official\1.20.4\official-1.20.4-srg.tsrg.gz -- --launchTarget forge_userdev_client --version MOD_DEV --assetIndex {asset_index} --assetsDir {assets_root} --gameDir . --mixin.config neroquests-common.mixins.json"/>
+  <stringAttribute key="org.eclipse.jdt.launching.WORKING_DIRECTORY" value="C:\Users\dario\Documents\projects\github\neroquests\forge\versions\1.20.4\runs\client"/>
+  <mapAttribute key="org.eclipse.debug.core.environmentVariables">
+    <mapEntry key="MCP_MAPPINGS" value="official_1.20.4"/>
+  </mapAttribute>
+  <listAttribute key="org.eclipse.jdt.launching.CLASSPATH">
+    <listEntry value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&lt;runtimeClasspathEntry projectName=&quot;neroquests-forge-1.20.4&quot; type=&quot;1&quot; path=&quot;5&quot; /&gt;"/>
+    <listEntry value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&lt;runtimeClasspathEntry containerPath=&quot;org.eclipse.buildship.core.gradleclasspathcontainer&quot; javaProject=&quot;neroquests-forge-1.20.4&quot; type=&quot;4&quot; path=&quot;5&quot; /&gt;"/>
+    <listEntry value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&lt;runtimeClasspathEntry externalArchive=&quot;C:\Users\dario\.gradle\caches\modules-2\files-2.1\net.minecraftforge\slime-launcher\0.2.3\62e842c3304d1f19639abcc43e98145e8fc96770\slime-launcher-0.2.3.jar&quot; type=&quot;2&quot; path=&quot;5&quot; /&gt;"/>
+    <listEntry value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;&lt;runtimeClasspathEntry containerPath=&quot;org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17&quot; type=&quot;4&quot; path=&quot;5&quot; /&gt;"/>
+  </listAttribute>
+  <booleanAttribute key="org.eclipse.jdt.launching.DEFAULT_CLASSPATH" value="false"/>
+</launchConfiguration>
