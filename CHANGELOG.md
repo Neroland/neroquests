@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-27
+
+### Added
+
+- A "Quest Unlocked" notification in the top-left corner when a quest becomes available to you: the
+  quest's icon and title slide in, stay a few seconds and slide out. Several unlocks queue one after
+  another, and a large batch (first join, a datapack reload, a gate opening a chapter) collapses into
+  one card with "+N more". Hidden while F3 is open or the HUD is hidden. Turn it off with the client
+  setting `questUnlockToasts`.
+- New `neroquests:quest_unlocked` server-to-client payload, sent only to the player it is about.
+- Minecraft 1.21.3, 26.1 and 26.1.1 on Fabric, Forge and NeoForge, and 1.20.2 and 1.20.3 on NeoForge.
+
 ## [0.7.1]
 
 ### Added

@@ -80,23 +80,31 @@ jobs:
             {"loader": "fabric", "mc": "1.20.5", "games": "1.20.5", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.20.6", "games": "1.20.6", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.1", "games": "1.21.1", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "1.21.3", "games": "1.21.3", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.4", "games": "1.21.4", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.5", "games": "1.21.5", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.8", "games": "1.21.7,1.21.8", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.10", "games": "1.21.9,1.21.10", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "1.21.11", "games": "1.21.11", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "26.1", "games": "26.1", "label": "Fabric", "suffix": ""},
+            {"loader": "fabric", "mc": "26.1.1", "games": "26.1.1", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "26.1.2", "games": "26.1.2", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "26.2", "games": "26.2", "label": "Fabric", "suffix": ""},
             {"loader": "fabric", "mc": "26.3", "games": "26.3", "label": "Fabric", "suffix": ""},
+            {"loader": "neoforge", "mc": "1.20.2", "games": "1.20.2", "label": "NeoForge", "suffix": ""},
+            {"loader": "neoforge", "mc": "1.20.3", "games": "1.20.3", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.20.4", "games": "1.20.4", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.20.5", "games": "1.20.5", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.20.6", "games": "1.20.6", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.1", "games": "1.21.1", "label": "NeoForge", "suffix": ""},
+            {"loader": "neoforge", "mc": "1.21.3", "games": "1.21.3", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.4", "games": "1.21.4", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.5", "games": "1.21.5", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.8", "games": "1.21.7,1.21.8", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.10", "games": "1.21.9,1.21.10", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "1.21.11", "games": "1.21.11", "label": "NeoForge", "suffix": ""},
+            {"loader": "neoforge", "mc": "26.1", "games": "26.1", "label": "NeoForge", "suffix": ""},
+            {"loader": "neoforge", "mc": "26.1.1", "games": "26.1.1", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "26.1.2", "games": "26.1.2", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "26.2", "games": "26.2", "label": "NeoForge", "suffix": ""},
             {"loader": "neoforge", "mc": "26.3", "games": "26.3", "label": "NeoForge", "suffix": ""},
@@ -107,11 +115,14 @@ jobs:
             {"loader": "forge", "mc": "1.20.4", "games": "1.20.4", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.20.6", "games": "1.20.6", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.1", "games": "1.21.1", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "1.21.3", "games": "1.21.3", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.4", "games": "1.21.4", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.5", "games": "1.21.5", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.8", "games": "1.21.7,1.21.8", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.10", "games": "1.21.9,1.21.10", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "1.21.11", "games": "1.21.11", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "26.1", "games": "26.1", "label": "Forge", "suffix": "-all"},
+            {"loader": "forge", "mc": "26.1.1", "games": "26.1.1", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "26.1.2", "games": "26.1.2", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "26.2", "games": "26.2", "label": "Forge", "suffix": "-all"},
             {"loader": "forge", "mc": "26.3", "games": "26.3", "label": "Forge", "suffix": "-all"}
@@ -502,7 +513,7 @@ jobs:
           release: neroquests@${{ needs.detect.outputs.version }}
           environment: ${{ needs.package_release.outputs.environment }}
 
-      # One GitHub Release carrying all 27 jars. This also creates the v<version> tag that
+      # One GitHub Release carrying every cell's jar. This also creates the v<version> tag that
       # `detect` reads as the release ledger - intentionally the LAST step, so a failed CurseForge
       # upload above leaves no tag and a re-run retries cleanly instead of being skipped.
       - name: Publish GitHub Release

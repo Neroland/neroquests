@@ -14,7 +14,9 @@ plugins {
 // MC version comes from the Stonecutter node (e.g. :fabric:26.1.2), not a global property.
 def mc = stonecutter.current.version
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
-def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
+// NeroEconomy publishes no 1.21.3, 26.1 or 26.1.1 jars: those cells compile against the nearest API line.
+def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1'
+        : mc == '1.21.3' ? '1.21.1' : mc in ['26.1', '26.1.1'] ? '26.1.2' : mc
 def economyApiVersion = rootProject.neroeconomy_version
 // Minecraft before 26.1 ships obfuscated, so those cells need mappings and a remapped jar.
 def obfuscated = mc.startsWith('1.')

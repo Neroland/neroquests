@@ -16,7 +16,7 @@ a name, IP address, chat line or coordinates.
 | Custom quests (`created_by`) | world file `neroquests:custom_quests` + backup | run player-made quests; show "you" to the author | game UUID of the author | until the quest is deleted | yes (own quests) | `created_by` cleared, quest kept |
 | Editor allow-list and lock | inside the custom-quest file | decide who may author | game UUID | until removed by an operator | yes (on the list or not) | yes |
 | World completion counts | inside quest progress | completion signals for other mods | none | kept | — | — |
-| Seen event channels, rate-limit buckets, seen chapters, post-erasure hold, daily custom-reward tally | memory only | editor channel picker, flood limits, app alerts, erasure safety, custom-quest daily limit | channels: none; others: game UUID | until the player leaves, the UTC day ends (tally) or the server stops | — | never saved; the tally is also dropped on an erasure request |
+| Seen event channels, rate-limit buckets, seen chapters, announced unlocks, post-erasure hold, daily custom-reward tally | memory only | editor channel picker, flood limits, app alerts, "Quest Unlocked" notification, erasure safety, custom-quest daily limit | channels: none; others: game UUID | until the player leaves, the UTC day ends (tally) or the server stops | — | never saved; the tally is also dropped on an erasure request |
 
 ## What is stored
 
@@ -204,6 +204,9 @@ Details: [`wiki/Link-Module.md`](wiki/Link-Module.md).
   `customCurrencyDailyCap` holds no identifier.
 - **Seen chapters** for the "A new chapter appeared" alert and the **post-erasure hold** described
   above: in memory while you are online, never saved.
+- **Announced unlocks:** the ids of the quests the server has already shown you as "Quest Unlocked"
+  this session (game UUID and quest ids), so each is announced once. Never logged or saved, pruned once
+  you are offline and dropped when the server stops. No notice is sent to a player whose data was erased.
 
 ## Telemetry
 

@@ -13,7 +13,9 @@ plugins {
 // MC version comes from the Stonecutter node (e.g. :neoforge:26.1.2), not a global property.
 def mc = stonecutter.current.version
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
-def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
+// NeroEconomy publishes no 1.21.3, 26.1 or 26.1.1 jars: those cells compile against the nearest API line.
+def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1'
+        : mc == '1.21.3' ? '1.21.1' : mc in ['26.1', '26.1.1'] ? '26.1.2' : mc
 def economyApiVersion = rootProject.neroeconomy_version
 def neoVersion = project.findProperty("neo_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
@@ -134,19 +136,30 @@ def generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     expand(props)
     from "${branchDir}/src/main/templates"
     if (stonecutter.eval(mc, '<1.20.5')) {
+        // NeoForge 20.2/20.3 read no [[mixins]] table: the jar manifest names the config instead (below).
+        def dropMixinTable = stonecutter.eval(mc, '<1.20.4')
         filesMatching('META-INF/neoforge.mods.toml') {
             name = 'mods.toml'
             filter { line -> line.replace('type = "required"', 'mandatory = true')
                                  .replace('type = "optional"', 'mandatory = false') }
+            if (dropMixinTable) {
+                filter { line -> line == '[[mixins]]' || line == 'config = "neroquests-common.mixins.json"' ? '' : line }
+            }
         }
     }
     into layout.buildDirectory.dir('generated/sources/modMetadata')
 }
 sourceSets.main.resources.srcDir generateModMetadata
 
-// NeoForge 20.5's POM predates the ModDevGradle variants. The original userdev jar supplies the
-// game patches and the original POM supplies dependencies for the compile and test classpaths.
-if (mc == '1.20.5') {
+if (stonecutter.eval(mc, '<1.20.4')) {
+    tasks.named('jar', Jar) {
+        manifest.attributes('MixinConfigs': 'neroquests-common.mixins.json')
+    }
+}
+
+// These NeoForge POMs (20.2, 20.3, 20.5) predate the ModDevGradle variants. The original userdev jar supplies
+// the game patches and the original POM supplies dependencies for the compile and test classpaths.
+if (mc in ['1.20.2', '1.20.3', '1.20.5']) {
     dependencies.components.withModule('net.neoforged:neoforge') { details ->
         if (details.id.version == neoVersion) {
             details.withVariant('sources') {

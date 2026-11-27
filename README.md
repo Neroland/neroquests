@@ -6,9 +6,9 @@ NeroQuests requires **Neroland Core 1.24.0 or newer** (below 2.0) on the same Mi
 
 | Minecraft | Fabric | Forge | NeoForge |
 | --- | --- | --- | --- |
-| 1.20, 1.20.1, 1.20.2, 1.20.3 | Yes | Yes | |
-| 1.20.4 | Yes | Yes | Yes |
-| 1.20.5 | Yes | | |
+| 1.20, 1.20.1 | Yes | Yes | |
+| 1.20.2, 1.20.3, 1.20.4 | Yes | Yes | Yes |
+| 1.20.5 | Yes | | Yes |
 | 1.20.6 | Yes | Yes | Yes |
 
 The Minecraft 1.20 through 1.20.4 builds use Java 17. For optional economy integration on those builds, use NeroEconomy 0.8.0 or newer.
@@ -38,11 +38,12 @@ A native, datapack-driven quest engine for the Neroland ecosystem:
 
 ## Build targets
 
-- **Fabric only:** Minecraft 1.20.5
-- **NeoForge:** Minecraft 1.20.5 on NeoForge 20.5.21-beta.
-- **Fabric, Forge and NeoForge:** Minecraft 1.20.6, 1.21.1, 1.21.4, 1.21.5, 1.21.7–1.21.8,
-  1.21.9–1.21.10, 1.21.11, 26.1.2, 26.2 and 26.3
-- **Java:** 21 for Minecraft 1.x and 25 for 26.x
+- **Fabric:** Minecraft 1.20 through 1.20.5
+- **Forge:** Minecraft 1.20 through 1.20.4
+- **NeoForge:** Minecraft 1.20.2 through 1.20.5 (1.20.3 on NeoForge 20.3.8-beta, 1.20.5 on 20.5.21-beta).
+- **Fabric, Forge and NeoForge:** Minecraft 1.20.6, 1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.7–1.21.8,
+  1.21.9–1.21.10, 1.21.11, 26.1, 26.1.1, 26.1.2, 26.2 and 26.3 (26.1 and 26.1.1 on NeoForge's beta loaders)
+- **Java:** 17 for Minecraft 1.20 through 1.20.4, 21 for the rest of 1.x and 25 for 26.x
 - **Requires:** Neroland Core 1.24.0 or later (below 2.0.0)
 - Mod id: `neroquests` · package `za.co.neroland.neroquests`
 

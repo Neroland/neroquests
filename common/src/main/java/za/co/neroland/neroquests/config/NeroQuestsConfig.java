@@ -33,6 +33,14 @@ public final class NeroQuestsConfig {
                     + "data, quest progress or chat; file paths scrubbed of your account name. "
                     + "On by default; set false to opt out of all of it (takes effect on restart). See PRIVACY.md");
 
+    // --- HUD (client-local) ----------------------------------------------------
+    /** Client-local: the top-left "Quest Unlocked" notification. Never server-authoritative. */
+    public static final ConfigValue<Boolean> QUEST_UNLOCK_TOASTS = SCHEMA.bool(
+            "questUnlockToasts", true, false,
+            "Show a 'Quest Unlocked' notification in the top-left corner of the screen when a quest becomes "
+                    + "available to you. Hidden while the debug screen (F3) is open or the HUD is hidden (F1). "
+                    + "Client-side; set false to turn it off.");
+
     // --- Progression gating (server-authoritative) --------------------------
     public static final ConfigValue<Boolean> GATE_WRITES_ENABLED = SCHEMA.bool(
             "gateWritesEnabled", true, true,

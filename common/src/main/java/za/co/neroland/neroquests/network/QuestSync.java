@@ -64,7 +64,7 @@ import za.co.neroland.neroquests.quest.objective.QuestCompleteObjective;
  * rows it contains. Nothing here broadcasts one player's progress to another — a server-scope
  * change fans out one <em>individually built</em> snapshot per player, each carrying that player's
  * own rows plus the identifier-free shared section. The per-player bookkeeping here (dirty marks, the
- * last definitions view sent) lives in memory only, is never logged, and is dropped on server stop.
+ * last definitions view sent, the quests already reported as unlocked) lives in memory only, is never logged, and is dropped on server stop.
  *
  * <p>Server thread only.
  */
@@ -213,13 +213,15 @@ public final class QuestSync {
                 }
             }
         }
-        if (SENT_VIEW.size() > server.getPlayerList().getPlayerCount() * 2 + 16) {
+        int prune = server.getPlayerList().getPlayerCount() * 2 + 16;
+        if (SENT_VIEW.size() > prune || QuestUnlocks.size() > prune) {
             Set<UUID> online = new HashSet<>();
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 online.add(player.getUUID());
             }
             SENT_VIEW.keySet().retainAll(online);
             QuestLinkAlerts.retainOnline(online);
+            QuestUnlocks.retainOnline(online);
         }
     }
 
@@ -228,6 +230,7 @@ public final class QuestSync {
         cache = null;
         OVERSIZE_WARNED.clear();
         SENT_VIEW.clear();
+        QuestUnlocks.clear();
         DEFINITIONS_DIRTY.clear();
         definitionsDirtyAll = false;
         PROGRESS_DIRTY.clear();
@@ -240,6 +243,7 @@ public final class QuestSync {
 
     private static void sendProgress(MinecraftServer server, ServerPlayer player) {
         Services.NETWORK.sendToPlayer(player, QuestProgressPayload.of(server, player));
+        QuestUnlocks.check(server, player);
     }
 
     /**
@@ -297,6 +301,8 @@ public final class QuestSync {
             Services.NETWORK.sendToPlayer(player, page);
         }
         SENT_VIEW.put(id, Integer.valueOf(view));
+        // A newly visible quest may also be newly available ("Quest Unlocked" on the client).
+        QuestUnlocks.check(server, player);
         // G1: "A new chapter appeared" (fixed text, deduped) when a pack/custom chapter joins this view.
         QuestLinkAlerts.chaptersVisible(id, packOrCustomShown);
     }

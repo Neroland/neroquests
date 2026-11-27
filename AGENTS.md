@@ -21,7 +21,9 @@
 - Requires **Neroland Core 1.15.0+** (`nerolandcore_version` in `gradle.properties`, resolved from
   `mavenLocal()`); manifests floor at that version and cap below 2.0.0. NeroEconomy is an optional
   `compileOnly` dependency.
-- Targets **MC 26.1.2, 26.2 AND 26.3** on **NeoForge, MinecraftForge/Forge, and Fabric** → the **"9 cells"**.
+- Targets **MC 1.20 through 26.3** (`mc_versions` in `gradle.properties`) on **NeoForge, MinecraftForge/Forge, and Fabric**:
+  54 cells (no NeoForge on 1.20/1.20.1, no Forge on 1.20.5; matrix in `.github/workflows/publish.yml`). The 26.x
+  cells are the primary targets.
   **Java 25.** Mappings = official Mojang names (26.x ships de-obfuscated; no Parchment).
 
 ## Quest sources

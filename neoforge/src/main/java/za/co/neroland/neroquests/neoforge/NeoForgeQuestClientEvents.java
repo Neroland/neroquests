@@ -7,12 +7,18 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 //?} else {
 /*import net.neoforged.neoforge.event.TickEvent;
 *///?}
+//? if >=1.20.5 {
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+//?}
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.common.NeoForge;
+import net.minecraft.resources.Identifier;
 
+import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.client.QuestBookKeys;
 import za.co.neroland.neroquests.client.QuestBookOpener;
 import za.co.neroland.neroquests.client.screen.QuestBookScreen;
+import za.co.neroland.neroquests.client.screen.QuestUnlockHud;
 import za.co.neroland.neroquests.network.QuestNetwork;
 
 /**
@@ -42,6 +48,16 @@ public final class NeoForgeQuestClientEvents {
         // static initialiser, and registering the same id twice throws.
         modEventBus.addListener((RegisterKeyMappingsEvent event) ->
                 event.register(QuestBookKeys.OPEN_QUEST_BOOK));
+        // The top-left "Quest Unlocked" notification, above every vanilla HUD layer.
+        //? if >=1.20.5 {
+        modEventBus.addListener((RegisterGuiLayersEvent event) -> event.registerAboveAll(
+                Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_unlocked"),
+                (graphics, delta) -> QuestUnlockHud.render(graphics)));
+        //?} else {
+        /*modEventBus.addListener((net.neoforged.neoforge.client.event.RegisterGuiOverlaysEvent event) ->
+                event.registerAboveAll(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_unlocked"),
+                        (gui, graphics, delta, width, height) -> QuestUnlockHud.render(graphics)));
+        *///?}
         //? if >=1.20.5 {
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> QuestBookKeys.tick());
 //?} else {

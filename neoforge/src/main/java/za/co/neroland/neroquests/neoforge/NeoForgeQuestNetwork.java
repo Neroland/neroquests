@@ -71,7 +71,7 @@ public final class NeoForgeQuestNetwork implements NetworkPlatform {
         *///?}
     }
 }
-//?} else {
+//?} else if >=1.20.4 {
 /*import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -173,6 +173,75 @@ public final class NeoForgeQuestNetwork implements NetworkPlatform {
         @Override
         public void write(FriendlyByteBuf buffer) {
             codec.encode(buffer, message);
+        }
+    }
+}
+*///?} else {
+/*import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.network.NetworkRegistry;
+import net.neoforged.neoforge.network.PacketDistributor;
+import net.neoforged.neoforge.network.PlayNetworkDirection;
+import net.neoforged.neoforge.network.simple.SimpleChannel;
+
+import za.co.neroland.neroquests.NeroQuestsCommon;
+import za.co.neroland.neroquests.network.QuestNetwork;
+import za.co.neroland.nerolandcore.network.legacy.LegacyPayload;
+import za.co.neroland.neroquests.platform.NetworkPlatform;
+
+// NeoForge 20.2 / 20.3: a SimpleChannel. Absent on the other side is accepted, so a client or server without
+// NeroQuests can still connect; nothing is sent to a side that does not have the channel.
+public final class NeoForgeQuestNetwork implements NetworkPlatform {
+    private static SimpleChannel channel;
+
+    public static void register(IEventBus modEventBus) {
+        var version = NetworkRegistry.acceptMissingOr("1");
+        channel = NetworkRegistry.newSimpleChannel(new ResourceLocation(NeroQuestsCommon.MOD_ID, "main"),
+                () -> "1", version, version);
+        int index = 0;
+        for (QuestNetwork.Clientbound<?> packet : QuestNetwork.clientbound()) {
+            registerClientbound(packet, index++);
+        }
+        for (QuestNetwork.Serverbound<?> packet : QuestNetwork.serverbound()) {
+            registerServerbound(packet, index++);
+        }
+    }
+
+    private static <T extends LegacyPayload> void registerClientbound(QuestNetwork.Clientbound<T> packet, int index) {
+        channel.messageBuilder(packet.type().payloadClass(), index, PlayNetworkDirection.PLAY_TO_CLIENT)
+                .encoder((payload, buffer) -> packet.codec().encode(buffer, payload))
+                .decoder(packet.codec()::decode)
+                .consumerMainThread((payload, context) -> packet.handler().accept(payload))
+                .add();
+    }
+
+    private static <T extends LegacyPayload> void registerServerbound(QuestNetwork.Serverbound<T> packet, int index) {
+        channel.messageBuilder(packet.type().payloadClass(), index, PlayNetworkDirection.PLAY_TO_SERVER)
+                .encoder((payload, buffer) -> packet.codec().encode(buffer, payload))
+                .decoder(packet.codec()::decode)
+                .consumerMainThread((payload, context) -> {
+                    ServerPlayer player = context.getSender();
+                    if (player != null) {
+                        packet.handler().accept(payload, player);
+                    }
+                })
+                .add();
+    }
+
+    @Override
+    public void sendToPlayer(ServerPlayer player, LegacyPayload payload) {
+        if (channel != null && channel.isRemotePresent(player.connection.connection)) {
+            channel.send(PacketDistributor.PLAYER.with(() -> player), payload);
+        }
+    }
+
+    @Override
+    public void sendToServer(LegacyPayload payload) {
+        var client = Minecraft.getInstance().getConnection();
+        if (channel != null && client != null && channel.isRemotePresent(client.getConnection())) {
+            channel.sendToServer(payload);
         }
     }
 }

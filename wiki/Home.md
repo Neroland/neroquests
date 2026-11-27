@@ -5,7 +5,8 @@ sci-fi Minecraft mod ecosystem. Built on **Neroland Core**.
 
 NeroQuests requires **Neroland Core 1.24.0 or newer** (below 2.0). The 1.20 series is supported on
 Fabric from 1.20 through 1.20.6, Forge from 1.20 through 1.20.4 and on 1.20.6, and NeoForge on
-1.20.4 through 1.20.6. For optional economy integration on 1.20 through 1.20.4, use NeroEconomy 0.8.0 or newer.
+1.20.2 through 1.20.6. The 1.21 series (1.21.1, 1.21.3, 1.21.4, 1.21.5, 1.21.7–1.21.11) and 26.1, 26.1.1,
+26.1.2, 26.2 and 26.3 are supported on all three loaders. For optional economy integration on 1.20 through 1.20.4, use NeroEconomy 0.8.0 or newer.
 
 Minecraft 1.20.5 on NeoForge requires loader 20.5.21-beta.
 
@@ -14,6 +15,7 @@ Minecraft 1.20.5 on NeoForge requires loader 20.5.21-beta.
 - [Story chapters](Story-Chapters.md) — the built-in quest line: Groundwork, Industrial Age, The Space Race
 - [Sibling chapters](Sibling-Chapters.md) — the chapter each Neroland mod adds to the book while it is installed
 - [Quest book](Quest-Book.md) — the in-game book: opening it, reading the graph, and the state legend
+- [Quest notifications](Quest-Notifications.md) — the top-left "Quest Unlocked" card, batching and how to turn it off
 - [Commands](Commands.md) — the `/neroquests` operator tree: grant, revoke, reset, list, reload-check, export, manual complete, editor, custom
 - [Quest editor](Quest-Editor.md) — making your own quests in game: what you can build and what to expect
 - [Editor permissions](Editor-Permissions.md) — for server admins: who may author, locking, limits, escrow, export/import and privacy

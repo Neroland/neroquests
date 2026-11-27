@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
 import za.co.neroland.neroquests.client.ClientEditor;
 import za.co.neroland.neroquests.client.ClientQuestDefinitions;
 import za.co.neroland.neroquests.client.ClientQuestProgress;
+import za.co.neroland.neroquests.client.ClientQuestUnlocks;
 import za.co.neroland.neroquests.platform.Services;
 
 /**
@@ -95,6 +96,8 @@ public final class QuestNetwork {
                 ClientQuestDefinitions::accept);
         clientbound(QuestProgressPayload.TYPE, QuestProgressPayload.STREAM_CODEC,
                 ClientQuestProgress::accept);
+        // The top-left "Quest Unlocked" notification (a plain-data queue, safe on a dedicated server).
+        clientbound(QuestUnlockedPayload.TYPE, QuestUnlockedPayload.STREAM_CODEC, ClientQuestUnlocks::accept);
         // E1: the quest editor. The reply is a plain-data mirror update (safe on a dedicated server).
         clientbound(EditorPayloads.Result.TYPE, EditorPayloads.Result.STREAM_CODEC, ClientEditor::accept);
         serverbound(EditorPayloads.CreateChapter.TYPE, EditorPayloads.CreateChapter.STREAM_CODEC,
@@ -128,6 +131,7 @@ public final class QuestNetwork {
     public static void clearClientCaches() {
         ClientQuestDefinitions.clear();
         ClientQuestProgress.clear();
+        ClientQuestUnlocks.clear();
         ClientEditor.clear();
     }
 }

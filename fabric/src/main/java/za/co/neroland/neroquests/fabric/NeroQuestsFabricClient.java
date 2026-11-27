@@ -4,11 +4,18 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
+//? if >=1.21.6 {
+import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.resources.Identifier;
+//?} else {
+/*import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+*///?}
 
 import za.co.neroland.neroquests.NeroQuestsCommon;
 import za.co.neroland.neroquests.client.QuestBookKeys;
 import za.co.neroland.neroquests.client.QuestBookOpener;
 import za.co.neroland.neroquests.client.screen.QuestBookScreen;
+import za.co.neroland.neroquests.client.screen.QuestUnlockHud;
 import za.co.neroland.neroquests.network.QuestNetwork;
 
 /** Fabric client entry point for NeroQuests. */
@@ -28,6 +35,14 @@ public final class NeroQuestsFabricClient implements ClientModInitializer {
         // KeyMappingHelper in ...client.keymapping.v1, not the old KeyBindingHelper.
         KeyMappingHelper.registerKeyMapping(QuestBookKeys.OPEN_QUEST_BOOK);
         ClientTickEvents.END_CLIENT_TICK.register(client -> QuestBookKeys.tick());
+
+        // The top-left "Quest Unlocked" notification.
+        //? if >=1.21.6 {
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath(NeroQuestsCommon.MOD_ID, "quest_unlocked"),
+                (graphics, delta) -> QuestUnlockHud.render(graphics));
+        //?} else {
+        /*HudRenderCallback.EVENT.register((graphics, delta) -> QuestUnlockHud.render(graphics));
+        *///?}
 
         // Drop the synced mirror caches on leaving a world/server, so one session's quests can
         // never be shown in the next (or on a server that does not run NeroQuests).

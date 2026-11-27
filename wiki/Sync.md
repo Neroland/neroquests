@@ -18,6 +18,7 @@ So the server pushes two things:
 | --- | --- | --- |
 | `neroquests:quest_definitions` | Every loaded quest and chapter — titles, icons, objectives, rewards, layout | One snapshot, shared by all players |
 | `neroquests:quest_progress` | The receiving player's own objective counters and completion times, plus the shared `scope: server` section | One snapshot per player |
+| `neroquests:quest_unlocked` | The ids of quests that just became available to the receiving player (at most 64, plus a total) | Only when something unlocked |
 
 In singleplayer the integrated server sends these to its own client. That is harmless and keeps a
 single code path for both singleplayer and multiplayer.
@@ -40,6 +41,11 @@ produces no quest traffic at all, even though the engine re-measures once a seco
 A progress payload is a full snapshot rather than a diff. A player's rows are a handful of quest ids
 with a few integers each, so a snapshot costs about as much as a diff would and removes a whole class
 of client/server drift bugs.
+
+After every definitions or progress sync to a player, the server checks which quests just became
+available to that player and, if any did, sends them one `quest_unlocked` batch for the
+[top-left notification](Quest-Notifications.md). Only quests already sent in that player's
+definitions are named.
 
 ## Reload handling
 
@@ -70,6 +76,9 @@ quests rather than the last session's.
   sent their *own* snapshot; no one is sent anyone else's.
 - **No identity travels.** A progress payload does not even carry the recipient's UUID — the snapshot
   is implicitly "yours", and the client already knows who it is.
+- **Unlock notices are yours alone.** A `quest_unlocked` batch names only quests that unlocked for its
+  recipient. The server's memory of what it already announced is per online player, never saved or
+  logged, and dropped when the player leaves or the server stops.
 - **Definitions carry no player data.** They are pack content — titles, icons, objective and reward
   specifications — and are byte-for-byte identical for every recipient.
 

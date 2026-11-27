@@ -6,6 +6,8 @@
   "key.neroquests.open_quest_book": "Open Quest Book",
 
   "message.neroquests.quest_complete": "Quest complete: %s",
+  "hud.neroquests.quest_unlocked": "Quest Unlocked",
+  "hud.neroquests.quest_unlocked.more": "+%s more",
 
   "message.neroquests.reward_owed": "%s credits could not be paid right now. They are kept for you and paid automatically later.",
   "message.neroquests.owed_paid": "%s owed quest credits have been paid.",

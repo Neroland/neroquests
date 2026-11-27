@@ -17,7 +17,9 @@ if (legacyForge) {
 }
 
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
-def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1' : mc
+// NeroEconomy publishes no 1.21.3, 26.1 or 26.1.1 jars: those cells compile against the nearest API line.
+def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1'
+        : mc == '1.21.3' ? '1.21.1' : mc in ['26.1', '26.1.1'] ? '26.1.2' : mc
 def economyApiVersion = rootProject.neroeconomy_version
 def forgeVersion = project.findProperty("forge_version_${mc}")
 def jeiVersion = project.findProperty("jei_version_${mc}")
