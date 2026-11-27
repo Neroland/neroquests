@@ -13,8 +13,11 @@ plugins {
 // MC version comes from the Stonecutter node (e.g. :neoforge:26.1.2), not a global property.
 def mc = stonecutter.current.version
 def legacyEconomyApi = stonecutter.eval(mc, '<1.20.5')
-// NeroEconomy publishes no 1.21.3, 26.1 or 26.1.1 jars: those cells compile against the nearest API line.
-def economyApiMc = !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1'
+// NeroEconomy publishes no NeoForge 1.20.2, 1.20.3, 1.21.3, 26.1 or 26.1.1 jars: those cells compile against the
+// nearest API line. 1.20.2 and 1.20.3 use the 1.20.4 jar, which carries the same legacy (<1.20.5) API. The bridge is
+// compileOnly and loads only when NeroEconomy is present, so no jar is bundled or required.
+def economyApiMc = mc in ['1.20.2', '1.20.3'] ? '1.20.4'
+        : !legacyEconomyApi && mc.startsWith('1.20.') ? '1.21.1'
         : mc == '1.21.3' ? '1.21.1' : mc in ['26.1', '26.1.1'] ? '26.1.2' : mc
 def economyApiVersion = rootProject.neroeconomy_version
 def neoVersion = project.findProperty("neo_version_${mc}")

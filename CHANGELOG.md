@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-27
+
+### Fixed
+
+- The NeoForge 1.20.2 and 1.20.3 builds failed to publish because NeroEconomy 0.8.1 has no jar for those lines. They
+  now compile the optional NeroEconomy bridge against its 1.20.4 build, which has the same API. Nothing is bundled
+  and NeroEconomy stays optional.
+
 ## [0.8.0] - 2026-11-27
 
 ### Added
